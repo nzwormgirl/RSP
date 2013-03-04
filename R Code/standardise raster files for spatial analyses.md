@@ -1,0 +1,101 @@
+Reproject raster data to GDA94
+========================================================
+
+This script opens ascii files and converts them to the same extent, projection and resolution as a selected file for the use in  Maxent and Zonation analyses.  
+
+In this case, we are converting to GDA94 with a resolution of 0.0009968153 degrees (equivalent of 100m) clipped to the extent of the Hunter region.  We may actually want to have this set to a larger extent for the Maxent modelling, so that we don't get weird edge effects but I think we might be constrained by some of the original data layers.  Note that this script doesn't run super fast but it gets the job done without having to click lots of buttons in ArcView which is nice!
+
+The projection data is taken from here[http://spatialreference.org/]
+
+
+
+```r
+# load packages and set working directory
+rm(list = ls())
+start.time <- proc.time()
+packages(raster)
+```
+
+```
+## Warning: package 'raster' was built under R version 2.15.2
+```
+
+```
+## Warning: package 'sp' was built under R version 2.15.2
+```
+
+```r
+setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/data from Brendan/data/variables/projected GDA94/")
+
+# open the selected sample file
+sample <- readGDAL("clipped/dry500cl.asc")
+```
+
+```
+## Error: could not find function "readGDAL"
+```
+
+```r
+sample <- raster(sample)
+```
+
+```
+## Error: unable to find an inherited method for function "raster", for
+## signature "function"
+```
+
+```r
+
+# definition of two main projections we are dealing with (from)
+GDA94_proj <- "+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs"
+AGD66_proj <- "+proj=utm +zone=56 +south +ellps=aust_SA +units=m +no_defs"
+
+# function that opens an input raster, converts it to match the example
+# raster and saves it in the specified folder
+convert.raster <- function(input.raster, input.projection, example.raster) {
+    require(raster)
+    r <- read.asciigrid(glue(input.raster, ".asc"))
+    r <- raster(r)
+    projection(r) <- input.projection
+    # convert r to the same extent, projection and resolution as the sample
+    # raster
+    r <- resample(r, example.raster, method = "bilinear")
+    names(r) <- input.raster
+    # save the new raster to the specified directory
+    writeRaster(r, glue("clipped/", input.raster, ".asc"), overwrite = TRUE)
+    print(input.raster)
+}
+
+# list of parameters that we want to standardise for analyses
+parameters <- c("clim1a", "clim11", "clim12", "dry2000cl", "fert", "percnonfor2k", 
+    "rugg250", "rugg500", "ter500", "ter1000", "toppos", "rf500cl", "rf2000cl", 
+    "rugg250", "rugg500", "unmod500cl", "unmod2000cl", "wet500cl", "wet2000cl")
+
+# loop through each raster in the parameter list
+for (i in seq(parameters)) {
+    convert.raster(parameters[i], GDA94_proj, sample)
+}
+```
+
+```
+## Error: unable to find an inherited method for function "resample", for
+## signature "RasterLayer", "function"
+```
+
+```r
+
+cat("\n", "This conversion of ", length(parameters), "rasters took", round((proc.time() - 
+    start.time)[3]/60, 2), "minutes")
+```
+
+```
+## 
+##  This conversion of  19 rasters took 0.06 minutes
+```
+
+
+**Note 1:** Opening the sample ascii file using readGDAL will also open the associated prj file.  However, we can't save prj for the exported ascii files.  This won't matter for the pupose of this exercise but might be something to investigate further at some point. 
+
+**Note 2:** For some reason readGDAL can't be found when you try and run this file using *knitr*.  However, it works fine as a straight *R* file.  Not really sure what is going on here but it seems to work okay, so should just leave it as it is for now.
+
+*This file was last updated on 29 January 2013 and last run on 29 January 2013.*

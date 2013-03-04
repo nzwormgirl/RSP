@@ -1,0 +1,134 @@
+Extract records from Australia Living Atlas data
+========================================================
+This script extracts records of threatened species (& other species we are interested in) from the regional data files downloaded from the Australian Living Atlas and the NSW Atlas. 
+
+Data were downloaded by selecting the NSW North Coast and Sydney Basin bioregions and then downloading all records within these region in large taxonomic blocks.  
+ 
+The script uses a function `extract` to identify whether data for each species in `species.list` has been downloaded from the regional ALA database based on the scientific name.  Note that sub-species will be lumped together unless they are specifically listed in `species.list`. If data exists, the records for each species are saved as a separate csv file by their scientific name.  Data are not filtered by data or location quality at this stage The master threatened species file is updated to reflect that the data has been downloaded and lists the number of records for that species.  
+
+The script loops through each taxonomic group and extracts the records for species listed in `threatened species`, then combines the regional data together for each species.  A print out to the screen lists the number of records successfully downloaded for each available species and this data is also updated in the threatened species list.
+
+```{r functions, highlight=TRUE}
+# set working directory
+rm(list=ls())
+
+rbind.match.columns <- function (input1,input2) {
+    n.input1 <- ncol(input1)
+    n.input2 <- ncol(input2)
+    
+    if(n.input2 < n.input1) {
+      TF.names <- which(names(input2) %in% names(input1))
+      column.names <- names(input2[,TF.names])
+      } else {
+        TF.names <- which(names(input1) %in% names(input2))
+        column.names <- names(input1[,TF.names])
+      }
+    
+    output <- rbind(input1[,column.names], input2[,column.names])
+  }
+
+extract <- function(folder, region, input,species){
+  records <- input[grep(species,input$Scientific.Name),]
+  if(nrow(records)>0) {
+    cat(nrow(records), "records for",as.character(species),"successfully extracted from",region,"in",folder,"\n")
+    return(records)
+  } 
+}
+
+combine.records <- function (NC.records, SB.records) {
+  tryCatch({
+            rbind.match.columns(NC.records,SB.records)
+            }, error = function(err){
+              if(is.null(NC.records)==TRUE & is.null(SB.records)==FALSE){
+                return(SB.records)
+              } else if(is.null(SB.records)==TRUE & is.null(NC.records)==FALSE){
+                return(NC.records)
+              } else cat("")
+            })
+  }
+          
+```
+
+```{r analysis_ALA}
+setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data")
+
+# open the list of threatened and interesting species for potential analysis
+# threatened.species <- read.csv("Nationally listed threatened species.csv")
+protected.species <- read.csv("IBRA threatened species list.csv")
+  threatened.species <- rbind(protected.species[grep("E", protected.species$NSW.status),], protected.species[grep("V", protected.species$NSW.status),])
+  threatened.species <- threatened.species[!duplicated(threatened.species),]
+  
+# the taxanomic blocks that the data were downloaded in
+taxa <- c("mammals", "amphibians", "plants", "reptiles")
+
+# loop through each taxonomic group and extract records based on the threatened species list
+for (k in seq(taxa)){
+  cat("\n", "Extracting records for",taxa[k],"\n")  
+  species.list <- threatened.species$Scientific.Name[threatened.species$Taxa==taxa[k]] 
+  NC.input <- read.csv(paste0("ALA downloads/NSW North Coast ",taxa[k],".csv"))
+  SB.input <- read.csv(paste0("ALA downloads/Sydney Basin ",taxa[k],".csv"))
+  for(i in seq(species.list)){
+      NC.records <- extract("ALA downloads", "NSW North Coast",NC.input,species.list[i])
+      SB.records <- extract("ALA downloads", "Sydney Basin",SB.input,species.list[i])
+      
+      all.records <- combine.records(NC.records, SB.records)
+        
+     if(is.null(all.records)==FALSE) {
+        protected.species$Downloaded.ALA[protected.species$Scientific.Name==species.list[i]] <- "yes"
+        protected.species$ALA.records[protected.species$Scientific.Name==species.list[i]] <- nrow(all.records)
+        write.csv(all.records, glue("ALA data/",species.list[i],".csv"),row.names=FALSE)
+        cat("Exported",nrow(all.records), "records for", as.character(species.list[i]),"\n","\n")
+        }
+      suppressWarnings(rm(NC.records,SB.records,all.records))
+      gc()
+    }
+}
+
+# update threatened species download information
+write.csv(protected.species, "IBRA threatened species list.csv", row.names=FALSE)
+
+```
+
+
+```{r analysis_NSW}
+setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data")
+
+# open the list of threatened and interesting species for potential analysis
+protected.species <- read.csv("IBRA threatened species list.csv")
+  threatened.species <- rbind(protected.species[grep("E", protected.species$NSW.status),], protected.species[grep("V", protected.species$NSW.status),])
+  threatened.species <- threatened.species[!duplicated(threatened.species),]
+  
+# the taxanomic blocks that the data were downloaded in
+taxa <- c("mammals", "amphibians", "plants", "reptiles")
+
+# loop through each taxonomic group and extract records based on the threatened species list
+for (k in seq(taxa)){
+  cat("\n", "Extracting records for",taxa[k],"\n")  
+  species.list <- threatened.species$Scientific.Name[threatened.species$Taxa==taxa[k]] 
+   NC.input <- read.csv(paste0("NSW Atlas downloads/NSW North Coast ",taxa[k],".csv"))
+    colnames(NC.input)[8] <- "Scientific.Name"
+  SB.input <- read.csv(paste0("NSW Atlas downloads/Sydney Basin ",taxa[k],".csv"))
+    colnames(SB.input)[8] <- "Scientific.Name"
+  for(i in seq(species.list)){
+      NC.records <- extract("NSW Atlas downloads", "NSW North Coast",NC.input,species.list[i])
+      SB.records <- extract("NSW Atlas downloads", "Sydney Basin",SB.input,species.list[i])
+      
+      all.records <- combine.records(NC.records, SB.records)
+        
+     if(is.null(all.records)==FALSE) {
+        protected.species$Downloaded.NSW[protected.species$Scientific.Name==species.list[i]] <- "yes"
+        protected.species$NSW.records[protected.species$Scientific.Name==species.list[i]] <- nrow(all.records)
+        write.csv(all.records, glue("NSW Atlas data/",species.list[i],".csv"),row.names=FALSE)
+        cat("Exported",nrow(all.records), "records for", as.character(species.list[i]),"\n","\n")
+        }
+      suppressWarnings(rm(NC.records,SB.records,all.records))
+      gc()
+    }
+}
+
+# update threatened species download information
+write.csv(protected.species, "IBRA threatened species list.csv", row.names=FALSE)
+
+```
+
+*This file was last updated on 3 March 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*

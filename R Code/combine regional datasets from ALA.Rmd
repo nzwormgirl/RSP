@@ -1,0 +1,77 @@
+Combine regional datasets from ALA
+========================================================
+
+This script takes regional taxanomic datasets from the ALA database, extracts the data where there are matching columns and combines them using `rbind` to create a combined dataset for threatened species record extraction.
+
+```{r, comment=FALSE}
+rm(list=ls())
+setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data")
+
+rbind.match.columns <- function (input1,input2) {
+    n.input1 <- ncol(input1)
+    n.input2 <- ncol(input2)
+    
+    if(n.input2 < n.input1) {
+      TF.names <- which(names(input2) %in% names(input1))
+      column.names <- names(input2[,TF.names])
+      } else {
+        TF.names <- which(names(input1) %in% names(input2))
+        column.names <- names(input1[,TF.names])
+      }
+    
+    output <- rbind(input1[,column.names], input2[,column.names])
+  }
+
+# the taxanomic blocks that the data were downloaded in
+taxa <- c("mammals", "amphibians", "plants", "reptiles", "birds")
+# 
+# for (i in seq(taxa)){
+# 
+#   hunter.records <- read.csv(paste0("ALA downloads/hunter ", taxa[i],".csv"))
+#     hunter.records$cma <- "hunter"
+#   hawkesberry.records <- read.csv(paste0("ALA downloads/hawkseberry ", taxa[i],".csv"))
+#     hawkesberry.records$cma <- "hawkesberry"
+#   sydney.records <- read.csv(paste0("ALA downloads/sydney ", taxa[i],".csv"))
+#     sydney.records$cma <- "sydney"
+#   
+#   
+#   combined.output <- rbind.match.columns(hunter.records, hawkesberry.records)
+#   combined.output <- rbind.match.columns(combined.output, sydney.records)
+#   
+#   write.csv(combined.output, paste0("ALA downloads/combined.", taxa[i],".csv"), row.names=FALSE)
+#   
+#   print(taxa[i])
+#   
+#   rm(hunter.records,hawkesberry.records,sydney.records,combined.output)
+#   gc()
+#   
+#   }
+
+for (i in seq(taxa)[1:4]){
+
+  cat("\n","Combining records for", taxa[i])
+  
+  NC.records <- read.csv(paste0("ALA downloads/NSW North Coast ", taxa[i],".csv"))
+    NC.records$ibra <- "nsw north coast"
+  SB.records <- read.csv(paste0("ALA downloads/Sydney Basin ", taxa[i],".csv"))
+    SB.records$ibra <- "sydney basin"
+    
+  combined.output <- rbind.match.columns(NC.records, SB.records)
+  
+  write.csv(combined.output, paste0("ALA downloads/ibra.", taxa[i],".csv"), row.names=FALSE)
+  
+  cat("\n", "Combined",nrow(combined.output), "records for",taxa[i], "\n")
+  
+  rm(NC.records,SB.records,combined.output)
+  gc()
+  
+  }
+
+# extract bird records from each ibra separately and recombine (inefficient but the birds files are too big for R to cope with)
+
+threatened.species <- read.csv("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/Nationally listed threatened species.csv")
+
+  
+```
+
+*This file was last updated on 1 March 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*

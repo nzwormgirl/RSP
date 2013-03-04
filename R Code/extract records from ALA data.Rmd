@@ -1,0 +1,50 @@
+Extract records from Australia Living Atlas data
+========================================================
+This script extracts records of threatened species (& other species we are interested in) from the data files downloaded from the Australian Living Atlas for the Hunter Valley region. 
+
+Data were downloaded by selecting the Hunter-Central Rivers and Hawkesberry-Nepean regions and then downloading all records within the region in large taxonomic blocks.  
+ 
+The script uses a function `extract` to identify whether data for each species in `species.list` has been downloaded from the ALA database based on the scientific name.  Note that sub-species will be lumped together unless they are specifically listed in `species.list`. If data exists, the records for each species are saved as a separate csv file by their scientific name.  Data are not filtered by data or location quality at this stage The master threatened species file is updated to reflect that the data has been downloaded and lists the number of records for that species.  
+
+The script loops through each taxonomic group and extracts the records for species listed in `threatened species`.  A print out to the screen lists the number of records successfully downloaded for each available species.
+
+```{r chunkset-options, highlight=TRUE}
+# set working directory
+rm(list=ls())
+setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data")
+
+# open the list of threatened and interesting species for potential analysis
+threatened.species <- read.csv("Nationally listed threatened species.csv")
+  species.list <- threatened.species$Scientific.Name[threatened.species$ALA.records>0]
+
+# the taxanomic blocks that the data were downloaded in
+taxa <- c("mammals", "amphibians", "plants", "birds", "reptiles")
+
+# function extract species data
+extract <- function(species){
+  records <- ALA.records[grep(species,ALA.records$Scientific.Name),]
+#     records <- records[records$Location.Quality == "Spatially valid",] # keep all records for now
+  if(nrow(records)>0) {
+    threatened.species$Downloaded.ALA[threatened.species$Scientific.Name==species ] <<- "yes"
+    threatened.species$ALA.records[threatened.species$Scientific.Name==species ] <<- nrow(records)
+    write.csv(records, glue("ALA data/",species,".csv"),row.names=FALSE)
+    cat(nrow(records), "records for",as.character(species),"successfully extracted","\n")
+  } #else cat("No records available for",as.character(species),"\n")
+}
+
+# loop through each taxonomic group and extract records based on the threatened species list
+for (k in seq(taxa)){
+  ALA.records <- read.csv(paste0("ALA downloads/combined.",taxa[k],".csv"))
+  cat("\n", taxa[k],"\n")  
+    for(i in seq(species.list)){
+      extract(species.list[i])
+    }
+}
+
+# update threatened species download information
+write.csv(threatened.species, "Nationally listed threatened species.csv", row.names=FALSE)
+
+```
+
+
+*This file was last updated on 12 February 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*

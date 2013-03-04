@@ -1,0 +1,125 @@
+Terrain Analysis in R
+========================================================
+
+I want to calculate the percentage of cells that contain a particular type of habitat within a given radius based on the Greater Hunter Vegetation Map.  This is my attempt at doing that.
+
+The plan is to:  
+1. create presence/absence rasters for each of the vegetation groups we are interested in  
+2. calculate the sum of cells within a given radius  
+3. recalculate this as a percentage  
+
+The original data will need to be exported from the geodatabase as shapefiles and/or rasters before analysis.  
+
+The following functions set up the circular filter window `make_circ_filter`, turn a raster in to presence-absence based on a threshold `presence.absence` and calculate the percentage cover within a given window `percent.cover`.  `make_circ_filter` uses code from [Michael Scroggie](http://scrogster.wordpress.com/2012/10/05/applying-a-circular-moving-window-filter-to-raster-data-in-r/) and requires a cell resolution and radius that is a multiple of the resolution.  
+
+* TRI (Terrain Ruggedness Index) is the mean of the absolute differences between the value of a cell and the value of its 8 surrounding cells.  
+* TPI (Topographic Position Index) is the difference between the value of a cell and the mean value of its 8 surrounding cells.   
+* Roughness is the difference between the maximum and the minimum value of a cell and its 8 surrounding cells.
+
+
+```{r chunkFunctions, warning=FALSE,message=FALSE}
+rm(list=ls())
+
+packages(raster)
+packages(rgdal)
+
+#function to make a circular weights matrix of given radius and resolution
+#NB radius must be an even multiple of res!
+make_circ_filter<-function(radius, res){
+  require(raster)
+  circ_filter<-matrix(NA, nrow=1+(2*radius/res), ncol=1+(2*radius/res))
+  dimnames(circ_filter)[[1]]<-seq(-radius, radius, by=res)
+  dimnames(circ_filter)[[2]]<-seq(-radius, radius, by=res)
+  sweeper<-function(mat){
+    for(row in 1:nrow(mat)){
+      for(col in 1:ncol(mat)){
+        dist<-sqrt((as.numeric(dimnames(mat)[[1]])[row])^2 +
+          (as.numeric(dimnames(mat)[[1]])[col])^2)
+        if(dist<=radius) {mat[row, col]<-1}
+      }
+    }
+    return(mat)
+  }
+out<-sweeper(circ_filter)
+return(out)
+}
+
+# function to sum the values in the circular filter and divides by the number of cells 
+##(removing all cells with NA values)
+percent.cover <- function(x){ sum(x,na.rm=T)/sum(cf, na.rm=T)*100}
+
+# function to convert a raster to presence-absence data based on a threshold
+  # set threshold to zero to create a mask of the area
+presence.absence <- function(x) { x[x<threshold] <- 0
+                     x[x>=threshold] <- 1
+                     return(x) }
+
+# Terrain Ruggedness Index
+TRI <- function(x){sum(abs(x[-5]-x[5]))/sum(x,na.rm=TRUE)}
+
+# Topographic Position Index
+TPI <- function(x){x[5] - mean(x[-5])}
+
+# Roughness
+roughness <- function(x){max(x) - min(x)}
+
+
+
+```
+
+```{r Analysis_function, fig.width=10, fig.height=6, message=FALSE}
+
+
+
+  # calculate the percentage cover within the circular filter
+    r_filt <- focal(sample.raster, w=cf, fun=percent.cover)*mask
+  
+    
+  
+  writeRaster(r_filt, paste0(radius,"m ",filename), overwrite=TRUE)
+  }
+```
+
+```{r run_analysis}
+  setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/all data from harddrive/HunterDEM/")
+
+  dem <- readGDAL("dem25_hcr_gda")
+    dem <- raster(dem)
+
+  hcr_mask <- readGDAL("C:/Users/awhitehead/Documents/GIS data/Hunter/environment/environment clipped by cma/hcr_mask")
+  hcr_mask <- raster(hcr_mask)
+  hcr_mask[!is.na(hcr_mask)] <- 1
+  hcr_extent <- extent(hcr_mask)
+
+  dem_hcr <- crop(dem,hcr_extent)
+
+  slope <- terrain(dem,opt="slope")
+  aspect <- terrain(dem, opt="aspect")
+        
+# get the resolution of the mask raster
+  resolution <- xres(hunt25merge)
+  
+# set the circular filters
+  cf250 <- make_circ_filter(250, resolution)
+  cf500 <- make_circ_filter(500, resolution)
+  cf1000 <- make_circ_filter(1000, resolution)
+
+  tpi250 <- focal(dem, w=cf250, fun=TPI)
+  tpi500 <- focal(dem, w=cf500, fun=TPI)
+  tpi1000 <- focal(dem, w=cf1000, fun=TPI)
+
+## Generate ascii files with percentage cover within 2000 m radius
+radius <- resolution*20
+
+# set the circular filter
+  cf<-make_circ_filter(radius, resolution)
+
+for(i in seq(veg_types)) {
+    
+  generate.pc.ascii(veg_types[i],hcr_mask)
+  
+ }
+
+```
+
+*This file was last updated on 24 February 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*

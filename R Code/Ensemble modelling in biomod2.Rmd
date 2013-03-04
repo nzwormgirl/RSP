@@ -1,0 +1,134 @@
+Ensemble modelling in biomod2
+========================================================
+
+
+
+```{r chunkbiomod-function}
+
+rm(list=ls())
+packages(biomod2)
+working.directory <- "C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/biomod2/"
+setwd(working.directory)
+
+species.data <- read.csv("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/maxent data/combined.data.csv")
+  colnames(species.data) <- c("index", "x","y")
+  # remove the whitespaces in species names
+  species.data$index <- gsub(" ","", species.data$index , fixed=TRUE)
+
+# read in environmental data
+require(raster)
+gis.directory <- "C:/Users/awhitehead/Documents/GIS data/Hunter/data from Brendan/data/variables/projected GDA94/"
+myExpl = stack( paste0(gis.directory,"clim1a.asc"), paste0(gis.directory,"clim11.asc"), paste0(gis.directory,"clim12.asc"), paste0(gis.directory,"clim11.asc"), paste0(gis.directory,"dry2000cl.asc"), paste0(gis.directory,"fert.asc"))
+
+# ensure that all raster layers have exactly the same data cells
+envi.mask <- calc(myExpl,mean)
+  envi.mask[!is.na(envi.mask)] <- 1
+
+  myExpl.mask <- myExpl*envi.mask
+    myExpl.mask <- stack(myExpl.mask)
+
+# envi.data <- d(myExpl[])
+# coord.data <- d(coordinates(myExpl))
+#   envi.data <- cbind(envi.data, coord.data)
+#   envi.data <- envi.data[complete.cases(envi.data),]
+
+# sp.mask <- subset(myExpl, "dry2000cl")
+# sp.mask[!is.na(sp.mask)] <- 0
+
+# ensure that there are no species points missing environmental data
+mySpeciesOcc <- species.data[complete.cases(extract(myExpl,species.data[,c("x","y")]))==TRUE,c("index","x","y")]
+
+sp.names <- as.character(unique(mySpeciesOcc$index))
+
+sp.n<- sp.names[3]
+
+MyBiomodSF <- function(sp.n){
+  
+    
+  ### definition of data for this run
+  ## i.e keep only the column of our species
+  myResp <- rep(1,length(mySpeciesOcc[mySpeciesOcc$index==sp.n,1]))
+    
+  myRespCoord = mySpeciesOcc[mySpeciesOcc$index==sp.n,2:3]
+  
+  myRespName = as.character(sp.n)
+
+#   sp.raster <- rasterize(myRespCoord,sp.mask,field=1)
+#   sp.raster <- merge(sp.raster,sp.mask)
+# 
+#   sp.data <- d(sp.raster[])
+#     sp.data <- sp.data[complete.cases(sp.data),]
+  
+  cat('\n',sp.n,'modeling ...')
+  
+  ## Initialisation
+  myBiomodData <- BIOMOD_FormatingData(resp.var = myResp,
+                                       expl.var = myExpl.mask,
+                                       resp.xy = myRespCoord,
+                                       resp.name = myRespName,
+                                       PA.nb.rep = 2,
+                                       PA.nb.absences = 10*sum(myResp==1, 
+                                                               na.rm=TRUE),
+                                       PA.strategy = 'random')
+
+  
+  ### Options definition
+  myBiomodOption <- BIOMOD_ModelingOptions()
+  
+  ### Modelling 
+  myBiomodModelOut <- BIOMOD_Modeling( 
+    myBiomodData, 
+    models = c('SRE','CTA','RF','MARS','GBM'), 
+    models.options = myBiomodOption, 
+    NbRunEval=1, 
+    DataSplit=80, 
+    Yweights=NULL, 
+    VarImport=3, 
+    models.eval.meth = c('TSS','ROC'),
+    SaveObj = TRUE,
+    rescal.all.models = TRUE)
+  
+  ### Building ensemble-models
+#   myBiomodEM <- BIOMOD_EnsembleModeling( 
+#     modeling.output = myBiomodModelOut,
+#     chosen.models = 'all',
+#     eval.metric = c('TSS'),
+#     eval.metric.quality.threshold = c(0.5),
+#     prob.mean = T,
+#     prob.cv = T,
+#     prob.ci = T,
+#     prob.ci.alpha = 0.05,
+#     prob.median = T,
+#     committee.averaging = T,
+#     prob.mean.weight = T,
+#     prob.mean.weight.decay = 'proportional' )
+#   
+#   ### Do projections on current varaiable
+#   myBiomomodProj <- BIOMOD_Projection(
+#     modeling.output = myBiomodModelOut,
+#     new.env = myExpl.mask,
+#     proj.name = 'current',
+#     selected.models = 'all',
+#     binary.meth= 'ROC',
+#     compress = 'xz',
+#     clamping.mask = F)
+#   
+#   ### Do ensemble-models projections on current varaiable
+#   myBiomodEF <- BIOMOD_EnsembleForecasting( 
+#     projection.output = myBiomomodProj,
+#     EM.output = myBiomodEM,
+#     binary.meth = 'TSS',
+#     total.consensus = TRUE)
+  
+ }
+
+
+###################################################
+### code chunk number 8: Lapply_2
+###################################################
+myLapply_SFModelsOut <- lapply( sp.names[1:2], MyBiomodSF)
+
+
+```
+
+*This file was last updated on 8 February 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*
