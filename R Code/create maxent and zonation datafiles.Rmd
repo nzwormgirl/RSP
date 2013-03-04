@@ -6,11 +6,11 @@ This script takes the downloaded data from the [Australian Living Atlas](http://
 2. a csv file of location points for input into Maxent `maxent.data`   
 3. a spp file for input into Zonation that lists all of the species ascii files and other attributes `zonation.spp`  
 
-The first part of the script takes the brut dataset where species have been coded into taxonomic groups and extracts data for species that have more than the specified minimum number of records that fall within the Hunter-Central Rivers CMA as masked by a shapefile. This is the same regio that data have been downloaded from the two atlases. 
-*Note that the CMA doesn't overlap with the lower region of the HCCREMS region which may cause some predictive issues - need to consider how to deal with this.  We also end up with species that don't have any records with the HCCREMS area which may also be an issue.* 
+The first part of the script takes the brut dataset where species have been coded into taxonomic groups and identifies species that have more than the specified minimum number of records that fall within the Hunter region as masked by a shapefile. We extract all records for these species from within the NSW North Coast and Sydney Basin bioregions  
 
-Then we run a loop that runs through the listed species with more than the minumim number of records and extracts the latitude and longitude of all records in the ALA and NSW databases.  It assumes that there will always be records available from the ALA and will give a warning if there is no NSW atlas data. 
-*Could either set species that don't occur in HCCREMS to negative values, so that they don't get selected or write some more complicated script that filters them out*
+Then we run a loop that runs through the species listed as *Vulnerable* or *Endangered* under the NSW legislation on the NSW database that have more than the minumim number of records and extracts the latitude and longitude of all records in the ALA and NSW databases.   
+
+*Note that these records are for the entire time period - this will need to be confined to something more sensible*
 
 
 ```{r setup, fig.width=7, fig.height=6, message=FALSE, warning=FALSE, comment=""}
@@ -21,6 +21,7 @@ packages(ggplot2)
 packages(ggmap)
 packages(maptools)
 packages(sp)
+packages(rgdal)
 
 setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/")
 
@@ -65,10 +66,10 @@ species.list <- threatened.species$Scientific.Name[rowSums(threatened.species[,c
 # create empty dataframes for the output data
   maxent.data <- d(species=NULL,longitude=NULL,latitude=NULL, database=NULL)
   atlas.zonation.spp <- d(weight=rep(1.0,length(species.list)), alpha=1.0, bqp.row=1.0, bqp.buffer=1.0, cell.removal=1.0, species=NA )
-  missing.NSW.sp <- NULL
+
 ```
 
-```{r brut_analysis}
+```{r brut_analysis, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
   setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/")
 
 # open the brut dataset and generate spatial co-ordinates
@@ -76,7 +77,7 @@ species.list <- threatened.species$Scientific.Name[rowSums(threatened.species[,c
   modeled.sp$database <- "brut"
   coordinates(modeled.sp) <- c("Lon_Centre","Lat_Centre")
 
-# clip the brut data by the CMA mask, provided there are at least 30 points in the HCCREMS
+# clip the brut data by the IBRA mask, provided there are at least 30 points in the hunter region
   ibra.sp <- modeled.sp[ibra.mask,]
   hunter.sp <- modeled.sp[hunter.mask,]
 
@@ -108,7 +109,7 @@ species.list <- threatened.species$Scientific.Name[rowSums(threatened.species[,c
 
 ```
 
-```{r ALA_NSW_analysis}
+```{r ALA_NSW_analysis, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
 setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/")
 
 # run loop to extract data from ALA and NSW atlas data by species 
@@ -134,7 +135,7 @@ for (i in seq(species.list)){
   
   ALA.NSW.data <- combine.records(ALA.data[,c("species","longitude","latitude","database")],NSW.data[,c("species","longitude","latitude","database")])
 
-  # only include species if more than the minimum number of records occur in the HCCREMS area
+  # only include species if more than the minimum number of records occur in the hunter
     ALA.NSW.points <- SpatialPoints(ALA.NSW.data[,c("longitude","latitude")])
     in.hunter <- nrow(d(ALA.NSW.points[complete.cases(over(ALA.NSW.points,hunter.mask)),]))
   
@@ -144,7 +145,7 @@ for (i in seq(species.list)){
   
   # output data for maxent analyses
     maxent.data <- rbind(maxent.data,ALA.NSW.data)
-    cat("\n", "Adding", nrow(ALA.NSW.data), "records for", as.character(species.list[i]), "to maxent data","\n")
+    cat("\n", "Adding", nrow(ALA.NSW.data), "records for", as.character(species.list[i]), "to maxent data")
   
     # create file for zonation analyses
     atlas.zonation.spp$species[i] <- glue(species.list[i],".asc")
@@ -163,16 +164,31 @@ zonation.spp <- rbind(brut.zonation.spp, atlas.zonation.spp)
   # print sample map for RMarkdown
   print(sp.map)
 ```
-These are combined together in `maxent.data` where there are `r nrow(maxent.data)` records for `r (length(species.list) + n.species)` species.  Note that there may be duplicate records in these files but they should be filtered out by Maxent. Maps of the distribution of each species are output into a pdf file (*C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/species point data maps.pdf*)
+These are combined together in `maxent.data` where there are `r nrow(maxent.data)` records for `r (length(species.list) + n.species)` species.  Note that there may be duplicate records in these files but they should be filtered out by Maxent. A map of the distribution of each species is saved in a pdf file (*C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/species point data maps.pdf*)
 
-```{r}
+```{r, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
 h(maxent.data)
+
+# convert maxent data to GDA94 Transverse Mercator Zone 56 to match the rest of the data
+  coordinates(maxent.data) <- c("longitude", "latitude")
+  
+  # set current projection
+  proj4string(maxent.data) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+
+  # transform to new projection
+  project_maxent.data <- spTransform(maxent.data, CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+
+  # convert back to a dataframe
+  export_maxent.data <- as.data.frame(project_maxent.data)
+    colnames(export_maxent.data)[3:4] <- c("easting","northing")
+
+  h(export_maxent.data)
                                   
-if(save.output ==TRUE) write.csv(maxent.data, "C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/maxent data/maxent.data.csv",row.names=FALSE)
+if(save.output ==TRUE) write.csv(export_maxent.data, "C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/maxent data/maxent.data.csv",row.names=FALSE)
 ```
 The `zonation.spp` table lists each species and the required input for zonation.  These are currently all set to `1` and will require some tinkering as we get further down the line. This assumes that we will run all the listed species in Maxent from `maxent.data.csv`, creating all the relevant ascii files. *Or we will use this same data in biomod2.*
 
-```{r}
+```{r, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
 h(zonation.spp)
 
 if(save.output ==TRUE) write.table(zonation.spp,glue("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/maxent data/zonation.spp.txt"),sep="\t",row.names=FALSE, col.names=FALSE)
