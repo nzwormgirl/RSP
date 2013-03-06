@@ -1,7 +1,7 @@
 Create data files for Maxent and Zonation analyses
 ========================================================
 
-This script takes the downloaded data from the [Australian Living Atlas](http://www.ala.org.au/species-by-location/) and [NSW Atlas](http://www.environment.nsw.gov.au/atlaspublicapp/UI_Modules/ATLAS_/AtlasSearch.aspx) for all specified species with more than the specified minimum number of records, as well as the data from the brut dataset, and produces:   
+This script takes the downloaded data from the [Australian Living Atlas](http://www.ala.org.au/species-by-location/) and [NSW Atlas](http://www.environment.nsw.gov.au/atlaspublicapp/UI_Modules/ATLAS_/AtlasSearch.aspx) for all specified species, as well as the data from the brut dataset, and produces:   
 1. a pdf of maps of all species locations (if `save.maps == TRUE`)   
 2. a csv file of location points for input into Maxent `maxent.data`   
 3. a spp file for input into Zonation that lists all of the species ascii files and other attributes `zonation.spp`  
@@ -10,7 +10,7 @@ The first part of the script takes the brut dataset where species have been code
 
 Then we run a loop that runs through the species listed as *Vulnerable* or *Endangered* under the NSW legislation on the NSW database that have more than the minumim number of records and extracts the latitude and longitude of all records in the ALA and NSW databases.   
 
-*Note that these records are for the entire time period - this will need to be confined to something more sensible*
+Data are only retained if they occur after a specified date.
 
 
 ```{r setup, fig.width=7, fig.height=6, message=FALSE, warning=FALSE, comment=""}
@@ -28,6 +28,7 @@ setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/")
 # save the maps as a pdf
   save.maps <- TRUE
   save.output <- TRUE
+  include.brut <- TRUE
 
 combine.records <- function (NC.records, SB.records) {
   tryCatch({
@@ -53,6 +54,9 @@ combine.records <- function (NC.records, SB.records) {
 
 # The minimum number of records required for a species to be included  
   min.records <- 30
+  
+# The earliest date for selecting records
+  min.date <- strptime("01/01/1990", "%d/%m/%Y")
 
 # open species list
   protected.species <- read.csv("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/IBRA threatened species list.csv")
@@ -69,12 +73,15 @@ species.list <- threatened.species$Scientific.Name[rowSums(threatened.species[,c
 
 ```
 
+Species are kept for analysis in Maxent if they have more than `r min.records` records within the Hunter region that were observed after `r min.date`. 
+
 ```{r brut_analysis, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
   setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/")
 
 # open the brut dataset and generate spatial co-ordinates
   modeled.sp <- read.csv("C:/Users/awhitehead/Documents/GIS data/Australia-wide/species data/modeledsp_order_brut.csv")
-  modeled.sp$database <- "brut"
+    modeled.sp <- modeled.sp[!is.na(modeled.sp$YEARmax >= (min.date$year+1900)),]
+    modeled.sp$database <- "brut"
   coordinates(modeled.sp) <- c("Lon_Centre","Lat_Centre")
 
 # clip the brut data by the IBRA mask, provided there are at least 30 points in the hunter region
@@ -117,6 +124,7 @@ for (i in seq(species.list)){
   # extract ALA data
   if (!is.na(threatened.species$Downloaded.ALA[threatened.species$Scientific.Name == species.list[i]]) == TRUE){
     ALA.data <- read.csv(glue("ALA data/",species.list[i],".csv"))
+      ALA.data <- ALA.data[!is.na(ALA.data$Year...parsed >= (min.date$year+1900)),]
       ALA.labels <- c("Latitude...processed", "Longitude...processed")
     colnames(ALA.data)[which(names(ALA.data) %in% ALA.labels)] <- c("latitude", "longitude")
     ALA.data$index <- paste(sprintf("%.6f",ALA.data$latitude), sprintf("%.6f",ALA.data$longitude))
@@ -127,6 +135,8 @@ for (i in seq(species.list)){
   #extract NSW Atlas data
   if (!is.na(threatened.species$Downloaded.NSW[threatened.species$Scientific.Name == species.list[i]]) == TRUE){
     NSW.data <- read.csv(glue("NSW Atlas data/",species.list[i],".csv"))
+      NSW.data$Rdate <- strptime(NSW.data$DateLast, "%d/%m/%Y")
+      NSW.data <- NSW.data[!is.na(NSW.data$Rdate >= min.date),]
     colnames(NSW.data)[c(21:22)] <- c("latitude", "longitude")
     NSW.data$index <- paste(sprintf("%.6f",NSW.data$latitude), sprintf("%.6f",NSW.data$longitude))
     NSW.data$database <- "NSW"
@@ -156,7 +166,9 @@ for (i in seq(species.list)){
   gc()
 }
 
-zonation.spp <- rbind(brut.zonation.spp, atlas.zonation.spp)
+  if(include.brut == TRUE) {
+    zonation.spp <- rbind(brut.zonation.spp, atlas.zonation.spp)
+    } else zonation.spp <- atlas.zonation.spp
 
 # close pdf file
   if(save.maps == TRUE) dev.off()
@@ -166,7 +178,7 @@ zonation.spp <- rbind(brut.zonation.spp, atlas.zonation.spp)
 ```
 These are combined together in `maxent.data` where there are `r nrow(maxent.data)` records for `r (length(species.list) + n.species)` species.  Note that there may be duplicate records in these files but they should be filtered out by Maxent. A map of the distribution of each species is saved in a pdf file (*C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/species point data maps.pdf*)
 
-```{r, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
+```{r export_maxent.data, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
 h(maxent.data)
 
 # convert maxent data to GDA94 Transverse Mercator Zone 56 to match the rest of the data
@@ -188,7 +200,7 @@ if(save.output ==TRUE) write.csv(export_maxent.data, "C:/Users/awhitehead/Docume
 ```
 The `zonation.spp` table lists each species and the required input for zonation.  These are currently all set to `1` and will require some tinkering as we get further down the line. This assumes that we will run all the listed species in Maxent from `maxent.data.csv`, creating all the relevant ascii files. *Or we will use this same data in biomod2.*
 
-```{r, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
+```{r export_zonation.file, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
 h(zonation.spp)
 
 if(save.output ==TRUE) write.table(zonation.spp,glue("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/maxent data/zonation.spp.txt"),sep="\t",row.names=FALSE, col.names=FALSE)
