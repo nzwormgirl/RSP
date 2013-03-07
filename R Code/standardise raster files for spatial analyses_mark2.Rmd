@@ -14,27 +14,27 @@ packages(rgdal)
 
 setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/")
 
-match.raster.extent <- function(input,output,mask=region_mask){
-  if(extent(input) != extent(mask)) {
-    cropped.input <- crop(input,extent(mask))
-    }
-      
-    if(extent(cropped.input) == extent(mask)) {
-        writeRaster(cropped.input,output,overwrite=TRUE)
-        cat("\n","Saved", output, "with new extent")
-        input <- raster(cropped.input)
-        } else {
-          expanded.input <- extend(input,extent(mask))
-          }
-     if(extent(expanded.input) == extent(mask)) {
-        writeRaster(expanded.input,output,overwrite=TRUE)
-      cat("\n","Saved", output, "with new extent")
-      input <- raster(expanded.input)
-        }
-    
-  return(input)
-  gc()
-  }
+# match.raster.extent <- function(input,output,mask=region_mask){
+#   if(extent(input) != extent(mask)) {
+#     cropped.input <- crop(input,extent(mask))
+#     }
+#       
+#     if(extent(cropped.input) == extent(mask)) {
+#         writeRaster(cropped.input,output,overwrite=TRUE)
+#         cat("\n","Saved", output, "with new extent")
+#         input <- raster(cropped.input)
+#         } else {
+#           expanded.input <- extend(input,extent(mask))
+#           }
+#      if(extent(expanded.input) == extent(mask)) {
+#         writeRaster(expanded.input,output,overwrite=TRUE)
+#       cat("\n","Saved", output, "with new extent")
+#       input <- raster(expanded.input)
+#         }
+#     
+#   return(input)
+#   gc()
+#   }
 
 ```
 
@@ -101,6 +101,8 @@ NA|	Cleared	|  1
     if(length(grep("aux.xml",climate.files))>0) climate.files <- climate.files[-grep("aux.xml",climate.files)]
     if(length(grep("ovr",climate.files))>0) climate.files <- climate.files[-grep("ovr",climate.files)]  
   climate.rasters <- stack(lapply(climate.files,raster))
+
+gc()
   
 ```
 

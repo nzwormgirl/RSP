@@ -53,13 +53,12 @@ combine.records <- function (NC.records, SB.records) {
 setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data")
 
 # open the list of threatened and interesting species for potential analysis
-# threatened.species <- read.csv("Nationally listed threatened species.csv")
 protected.species <- read.csv("IBRA threatened species list.csv")
   threatened.species <- rbind(protected.species[grep("E", protected.species$NSW.status),], protected.species[grep("V", protected.species$NSW.status),])
   threatened.species <- threatened.species[!duplicated(threatened.species),]
   
 # the taxanomic blocks that the data were downloaded in
-taxa <- c("mammals", "amphibians", "plants", "reptiles")
+taxa <- c("mammals", "amphibians", "plants", "reptiles","birds")
 
 # loop through each taxonomic group and extract records based on the threatened species list
 for (k in seq(taxa)){

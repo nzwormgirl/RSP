@@ -71,8 +71,8 @@ presence.absence <- function(x) { x[x<threshold] <- 0
     plot(sample.raster, main=filename, axes=F) #original data
     plot(r_filt, main=paste0(radius,"m ",filename), axes=F) #filtered data
   
-  writeRaster(r_filt, paste0(radius,"m ",filename), overwrite=TRUE)
-    cat("\n","Saved",paste0(radius,"m ",filename),"in",getwd(),"\n","\n")
+  writeRaster(r_filt, paste0("/ascii files",filename, radius), overwrite=TRUE)
+    cat("\n","Saved",paste0(filename,radius),"in",paste0(getwd(),"/ascii files"),"\n","\n")
   }
 ```
 
@@ -122,12 +122,10 @@ for(i in seq(veg_types)) {
 ```{r run_keith_analysis}
   setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/vegetation/Keith vegetation raster data")
 
-  veg_types <- c("dry_sclero.asc","rainforests.asc","wet_sclero.asc","cleared.asc")
+  veg_types <- c("dry_sclero.asc","rainforests.asc","wet_sclero.asc","cleared.asc", "woody.asc")
 
 # create a sampling mask
-  bioregion_mask <- readGDAL("C:/Users/awhitehead/Documents/GIS data/Hunter/Plans/Bioregions/ibra_mask")
-  bioregion_mask <- raster(bioregion_mask)
-  bioregion_mask[!is.na(bioregion_mask)] <- 1
+  bioregion_mask <- raster("C:/Users/awhitehead/Documents/GIS data/Hunter/Plans/Bioregions/ibra_mask.asc")
         
 # get the resolution of the mask raster
   resolution <- xres(bioregion_mask)

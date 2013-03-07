@@ -21,7 +21,8 @@ setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/data from Brendan/data/vari
   sample.raster <- raster(sample.raster)
 
 # definition of two main projections we are dealing with (from)
-  GDA94_proj <- "+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs" 
+  GDA94_proj <- "+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs"
+  GDA94.TM_proj <- "+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
   AGD66_proj <- "+proj=utm +zone=56 +south +ellps=aust_SA +units=m +no_defs" 
 
 # function that opens an input raster, converts it to match the example raster and saves it in the specified folder
