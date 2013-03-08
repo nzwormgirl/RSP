@@ -9,32 +9,16 @@ When you click the **Knit HTML** button a web page will be generated that includ
 #load packages and set working directory
 rm(list=ls())
 start.time <- proc.time()
+
+computer <- "UM"
+
+if(computer == "super") source("~/R code/Rprofile.r")
+if(computer == "UM") working.directory <- "C:/Users/awhitehead/Documents/GIS data/Hunter/Maxent files/ascii files/environmental data"
+
+setwd(working.directory)
+
 packages(raster)
 packages(rgdal)
-
-setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/")
-
-# match.raster.extent <- function(input,output,mask=region_mask){
-#   if(extent(input) != extent(mask)) {
-#     cropped.input <- crop(input,extent(mask))
-#     }
-#       
-#     if(extent(cropped.input) == extent(mask)) {
-#         writeRaster(cropped.input,output,overwrite=TRUE)
-#         cat("\n","Saved", output, "with new extent")
-#         input <- raster(cropped.input)
-#         } else {
-#           expanded.input <- extend(input,extent(mask))
-#           }
-#      if(extent(expanded.input) == extent(mask)) {
-#         writeRaster(expanded.input,output,overwrite=TRUE)
-#       cat("\n","Saved", output, "with new extent")
-#       input <- raster(expanded.input)
-#         }
-#     
-#   return(input)
-#   gc()
-#   }
 
 ```
 
@@ -59,10 +43,10 @@ NA|	Cleared	|  1
 
 # open environmental rasters
   # region mask
-  region.mask <- raster("Plans/Bioregions/ibra_mask.asc")
+  region.mask <- raster("ibra_mask.asc")
 
   # vegetation
-  (veg.files <- dir("vegetation/Keith vegetation raster data/ascii files", pattern="*.asc", recursive=T, full.names=T)) 
+  (veg.files <- dir("vegetation", pattern="*.asc", recursive=T, full.names=T)) 
     # remove arcgis generated files from list
     if(length(grep("aux.xml",veg.files))>0) veg.files <- veg.files[-grep("aux.xml",veg.files)]
     if(length(grep("ovr",veg.files))>0) veg.files <- veg.files[-grep("ovr",veg.files)]
@@ -83,7 +67,7 @@ NA|	Cleared	|  1
   veg.rasters <- stack(veg.rasters)
 
   # topography
-  (topo.files <- dir("All data from harddrive/SRTM DEM/ascii files", pattern="*.asc", recursive=T, full.names=T)) 
+  (topo.files <- dir("topography", pattern="*.asc", recursive=T, full.names=T)) 
     # remove arcgis generated files from list
     if(length(grep("aux.xml",topo.files))>0) topo.files <- topo.files[-grep("aux.xml",topo.files)]
     if(length(grep("ovr",topo.files))>0) topo.files <- topo.files[-grep("ovr",topo.files)]  
@@ -91,12 +75,14 @@ NA|	Cleared	|  1
     
 
   # soils
-  wii <- raster("environment/WII Hunter/ascii files/wii_100.asc")
-  fert <- raster("All data from harddrive/Soil_fertilityV2/Data/ascii files/fert.asc")
-  soil.rasters <- stack(wii,fert)
+  (soil.files <- dir("soils", pattern="*.asc", recursive=T, full.names=T)) 
+    # remove arcgis generated files from list
+    if(length(grep("aux.xml",soil.files))>0) soil.files <- soil.files[-grep("aux.xml",soil.files)]
+    if(length(grep("ovr",soil.files))>0) soil.files <- soil.files[-grep("ovr",soil.files)]  
+  soil.rasters <- stack(lapply(soil.files,raster))
 
   # climate
-  (climate.files <- dir("All data from harddrive/Bioclim/ascii files", pattern="*.asc", recursive=T, full.names=T)) 
+  (climate.files <- dir("climate", pattern="*.asc", recursive=T, full.names=T)) 
     # remove arcgis generated files from list
     if(length(grep("aux.xml",climate.files))>0) climate.files <- climate.files[-grep("aux.xml",climate.files)]
     if(length(grep("ovr",climate.files))>0) climate.files <- climate.files[-grep("ovr",climate.files)]  
@@ -109,7 +95,7 @@ gc()
 
 ```{r standardise_rasters}
 # stack all environmental rasters together
-  envi.rasters<-stack(region.mask,veg.rasters, topo.rasters, wii, fert, climate.rasters)
+  envi.rasters<-stack(region.mask,veg.rasters, topo.rasters, soil.rasters, climate.rasters)
 
 # standardise rasters  
   # calculate mean raster from stack to identify all NA values
@@ -131,14 +117,13 @@ gc()
     gc()
 
   # write each raster to disk
-  setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/Maxent files/ascii files")
   
   for(i in 1:length(envi.rasters.mask.list)){
     cat("\n", "Writing ",as.character(names(envi.rasters.mask.list[[i]])), "to ", getwd())
-    writeRaster(envi.rasters.mask.list[[i]], names(envi.rasters.mask.list[[i]]))
+    writeRaster(envi.rasters.mask.list[[i]], paste0("standardised rasters/",names(envi.rasters.mask.list[[i]]),".asc"))
         gc()
   }
 
-
+cat("\n","This analysis took",round((proc.time()-start.time)[3]/60,0), "minutes to run with",length(names(envi.rasters)), "rasters.")
 ```
 
