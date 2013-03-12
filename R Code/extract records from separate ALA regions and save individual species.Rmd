@@ -58,7 +58,7 @@ protected.species <- read.csv("IBRA threatened species list.csv")
   threatened.species <- threatened.species[!duplicated(threatened.species),]
   
 # the taxanomic blocks that the data were downloaded in
-taxa <- c("mammals", "amphibians", "plants", "reptiles","birds")
+taxa <- c("mammals", "amphibians", "plants", "reptiles","birds","arthropods")
 
 # loop through each taxonomic group and extract records based on the threatened species list
 for (k in seq(taxa)){
@@ -66,11 +66,15 @@ for (k in seq(taxa)){
   species.list <- threatened.species$Scientific.Name[threatened.species$Taxa==taxa[k]] 
   NC.input <- read.csv(paste0("ALA downloads/NSW North Coast ",taxa[k],".csv"))
   SB.input <- read.csv(paste0("ALA downloads/Sydney Basin ",taxa[k],".csv"))
+  BB.input <- read.csv(paste0("ALA downloads/Brigalow Belt South ",taxa[k],".csv"))
+
   for(i in seq(species.list)){
       NC.records <- extract("ALA downloads", "NSW North Coast",NC.input,species.list[i])
       SB.records <- extract("ALA downloads", "Sydney Basin",SB.input,species.list[i])
+      BB.records <- extract("ALA downloads", "Brigalow Belt South",BB.input,species.list[i])
       
       all.records <- combine.records(NC.records, SB.records)
+        all.records <- combine.records(all.records, BB.records)
         
      if(is.null(all.records)==FALSE) {
         protected.species$Downloaded.ALA[protected.species$Scientific.Name==species.list[i]] <- "yes"
@@ -78,7 +82,7 @@ for (k in seq(taxa)){
         write.csv(all.records, glue("ALA data/",species.list[i],".csv"),row.names=FALSE)
         cat("Exported",nrow(all.records), "records for", as.character(species.list[i]),"\n","\n")
         }
-      suppressWarnings(rm(NC.records,SB.records,all.records))
+      suppressWarnings(rm(NC.records,SB.records,BB.records,all.records))
       gc()
     }
 }
@@ -98,7 +102,7 @@ protected.species <- read.csv("IBRA threatened species list.csv")
   threatened.species <- threatened.species[!duplicated(threatened.species),]
   
 # the taxanomic blocks that the data were downloaded in
-taxa <- c("mammals", "amphibians", "plants", "reptiles")
+taxa <- c("mammals", "amphibians", "plants", "reptiles","arthropods","birds")
 
 # loop through each taxonomic group and extract records based on the threatened species list
 for (k in seq(taxa)){
@@ -108,11 +112,15 @@ for (k in seq(taxa)){
     colnames(NC.input)[8] <- "Scientific.Name"
   SB.input <- read.csv(paste0("NSW Atlas downloads/Sydney Basin ",taxa[k],".csv"))
     colnames(SB.input)[8] <- "Scientific.Name"
+  BB.input <- read.csv(paste0("NSW Atlas downloads/Brigalow Belt South ",taxa[k],".csv"))
+    colnames(BB.input)[8] <- "Scientific.Name"
   for(i in seq(species.list)){
       NC.records <- extract("NSW Atlas downloads", "NSW North Coast",NC.input,species.list[i])
       SB.records <- extract("NSW Atlas downloads", "Sydney Basin",SB.input,species.list[i])
+      BB.records <- extract("NSW Atlas downloads", "Brigalow Belt South",BB.input,species.list[i])
       
       all.records <- combine.records(NC.records, SB.records)
+        all.records <- combine.records(all.records, BB.records)
         
      if(is.null(all.records)==FALSE) {
         protected.species$Downloaded.NSW[protected.species$Scientific.Name==species.list[i]] <- "yes"
@@ -120,7 +128,7 @@ for (k in seq(taxa)){
         write.csv(all.records, glue("NSW Atlas data/",species.list[i],".csv"),row.names=FALSE)
         cat("Exported",nrow(all.records), "records for", as.character(species.list[i]),"\n","\n")
         }
-      suppressWarnings(rm(NC.records,SB.records,all.records))
+      suppressWarnings(rm(NC.records,SB.records,BB.records,all.records))
       gc()
     }
 }
@@ -130,4 +138,4 @@ write.csv(protected.species, "IBRA threatened species list.csv", row.names=FALSE
 
 ```
 
-*This file was last updated on 3 March 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*
+*This file was last updated on 12 March 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*
