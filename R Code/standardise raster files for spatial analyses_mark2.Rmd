@@ -13,7 +13,7 @@ start.time <- proc.time()
 computer <- "UM"
 
 if(computer == "super") source("~/R code/Rprofile.r")
-if(computer == "UM") working.directory <- "C:/Users/awhitehead/Documents/GIS data/Hunter/Maxent files/ascii files/environmental data"
+if(computer == "UM") working.directory <- "C:/Users/awhitehead/Documents/GIS_data/Hunter/Maxent_files/ghm_environmental_data"
 
 setwd(working.directory)
 
@@ -43,7 +43,7 @@ NA|	Cleared	|  1
 
 # open environmental rasters
   # region mask
-  region.mask <- raster("ibra_mask.asc")
+  region.mask <- raster("hccrems_mask.asc")
 
   # vegetation
   (veg.files <- dir("vegetation", pattern="*.asc", recursive=T, full.names=T)) 
@@ -52,18 +52,18 @@ NA|	Cleared	|  1
     if(length(grep("ovr",veg.files))>0) veg.files <- veg.files[-grep("ovr",veg.files)]
   veg.rasters <- lapply(veg.files,raster)
 
-  keith.raster <- veg.rasters[[7]]
-    keith.raster[keith.raster==1] <- NA #cleared
-    keith.raster[keith.raster==5] <- 3 # combine Wet sclerophyll forests
-    keith.raster[keith.raster==10] <- 4 # combine dry sclerophyll forests
-    keith.raster[keith.raster==7] <- 5 # combine wetlands
-    keith.raster[keith.raster==8] <- 5 # combine wetlands
-    keith.raster[keith.raster==11] <- 5 # combine wetlands
-    keith.raster[keith.raster==9] <- 7 # reclassify grassy woodlands
-    keith.raster[keith.raster==12] <- 1 # reclassify grasslands
+#   keith.raster <- veg.rasters[[7]]
+#     keith.raster[keith.raster==1] <- NA #cleared
+#     keith.raster[keith.raster==5] <- 3 # combine Wet sclerophyll forests
+#     keith.raster[keith.raster==10] <- 4 # combine dry sclerophyll forests
+#     keith.raster[keith.raster==7] <- 5 # combine wetlands
+#     keith.raster[keith.raster==8] <- 5 # combine wetlands
+#     keith.raster[keith.raster==11] <- 5 # combine wetlands
+#     keith.raster[keith.raster==9] <- 7 # reclassify grassy woodlands
+#     keith.raster[keith.raster==12] <- 1 # reclassify grasslands
 
-  veg.rasters[[7]] <- keith.raster
-    rm(keith.raster)
+#   veg.rasters[[7]] <- keith.raster
+#     rm(keith.raster)
   veg.rasters <- stack(veg.rasters)
 
   # topography

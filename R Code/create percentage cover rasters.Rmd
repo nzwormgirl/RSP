@@ -77,7 +77,7 @@ presence.absence <- function(x) { x[x<threshold] <- 0
 ```
 
 ```{r run_ghm_analysis}
-  setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/vegetation/GHM raster data")
+  setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/vegetation/GHM raster data")
 
   veg_types <- c("woody_veg.asc","exotic_veg.asc","dry_sclero.asc","forest_wet.asc","rainforests.asc","lit_rainfor.asc","fresh_wet.asc","river_for.asc","mangrove.asc","saltmarshes.asc","shrublands.asc","west_grasslands.asc","wet_sclero.asc","woodlands.asc")
 
@@ -86,7 +86,7 @@ presence.absence <- function(x) { x[x<threshold] <- 0
   ghm_mask <- raster(ghm_mask)
   ghm_mask[!is.na(ghm_mask)] <- 1
 
-  hcr_mask <- readGDAL("C:/Users/awhitehead/Documents/GIS data/Hunter/environment/environment clipped by cma/hcr_mask")
+  hcr_mask <- readGDAL("C:/Users/awhitehead/Documents/GIS_data/Hunter/environment/environment clipped by cma/hcr_mask")
   hcr_mask <- raster(hcr_mask)
   hcr_mask[!is.na(hcr_mask)] <- 1
         
@@ -120,12 +120,12 @@ for(i in seq(veg_types)) {
 ```
 
 ```{r run_keith_analysis}
-  setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/vegetation/Keith vegetation raster data")
+  setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/vegetation/Keith vegetation raster data")
 
   veg_types <- c("dry_sclero.asc","rainforests.asc","wet_sclero.asc","cleared.asc", "woody.asc")
 
 # create a sampling mask
-  bioregion_mask <- raster("C:/Users/awhitehead/Documents/GIS data/Hunter/Plans/Bioregions/ibra_mask.asc")
+  bioregion_mask <- raster("C:/Users/awhitehead/Documents/GIS_data/Hunter/Plans/Bioregions/ibra_mask.asc")
         
 # get the resolution of the mask raster
   resolution <- xres(bioregion_mask)
