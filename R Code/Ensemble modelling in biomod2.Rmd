@@ -7,36 +7,39 @@ Ensemble modelling in biomod2
 
 rm(list=ls())
 packages(biomod2)
-working.directory <- "C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/biomod2/"
+working.directory <- "C:/Users/awhitehead/Documents/GIS data/Hunter/Maxent files"
 setwd(working.directory)
 
-species.data <- read.csv("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data/maxent data/combined.data.csv")
+species.data <- read.csv("species data/maxent.data.csv")
   colnames(species.data) <- c("index", "x","y")
   # remove the whitespaces in species names
-  species.data$index <- gsub(" ","", species.data$index , fixed=TRUE)
+  species.data$index <- gsub(" ",".", species.data$index , fixed=TRUE)
 
 # read in environmental data
 require(raster)
-gis.directory <- "C:/Users/awhitehead/Documents/GIS data/Hunter/data from Brendan/data/variables/projected GDA94/"
-myExpl = stack( paste0(gis.directory,"clim1a.asc"), paste0(gis.directory,"clim11.asc"), paste0(gis.directory,"clim12.asc"), paste0(gis.directory,"clim11.asc"), paste0(gis.directory,"dry2000cl.asc"), paste0(gis.directory,"fert.asc"))
+(gis.files <- dir("ghm environmental data/standardised rasters", pattern="*.asc", recursive=T, full.names=T))
+# remove arcgis generated files from list
+    if(length(grep("aux.xml",gis.files))>0) gis.files <- gis.files[-grep("aux.xml",gis.files)]
+    if(length(grep("ovr",gis.files))>0) gis.files <- gis.files[-grep("ovr",gis.files)]
+  gis.rasters <- stack(gis.files,raster)
 
-# ensure that all raster layers have exactly the same data cells
-envi.mask <- calc(myExpl,mean)
-  envi.mask[!is.na(envi.mask)] <- 1
-
-  myExpl.mask <- myExpl*envi.mask
-    myExpl.mask <- stack(myExpl.mask)
-
-# envi.data <- d(myExpl[])
-# coord.data <- d(coordinates(myExpl))
-#   envi.data <- cbind(envi.data, coord.data)
-#   envi.data <- envi.data[complete.cases(envi.data),]
-
-# sp.mask <- subset(myExpl, "dry2000cl")
-# sp.mask[!is.na(sp.mask)] <- 0
+# # ensure that all raster layers have exactly the same data cells
+# envi.mask <- calc(myExpl,mean)
+#   envi.mask[!is.na(envi.mask)] <- 1
+# 
+#   myExpl.mask <- myExpl*envi.mask
+#     myExpl.mask <- stack(myExpl.mask)
+# 
+# # envi.data <- d(myExpl[])
+# # coord.data <- d(coordinates(myExpl))
+# #   envi.data <- cbind(envi.data, coord.data)
+# #   envi.data <- envi.data[complete.cases(envi.data),]
+# 
+# # sp.mask <- subset(myExpl, "dry2000cl")
+# # sp.mask[!is.na(sp.mask)] <- 0
 
 # ensure that there are no species points missing environmental data
-mySpeciesOcc <- species.data[complete.cases(extract(myExpl,species.data[,c("x","y")]))==TRUE,c("index","x","y")]
+mySpeciesOcc <- species.data[complete.cases(extract(gis.rasters,species.data[,c("x","y")]))==TRUE,c("index","x","y")]
 
 sp.names <- as.character(unique(mySpeciesOcc$index))
 
@@ -63,12 +66,11 @@ MyBiomodSF <- function(sp.n){
   
   ## Initialisation
   myBiomodData <- BIOMOD_FormatingData(resp.var = myResp,
-                                       expl.var = myExpl.mask,
+                                       expl.var = gis.rasters,
                                        resp.xy = myRespCoord,
                                        resp.name = myRespName,
                                        PA.nb.rep = 2,
-                                       PA.nb.absences = 10*sum(myResp==1, 
-                                                               na.rm=TRUE),
+                                       PA.nb.absences = 10*sum(myResp==1, na.rm=TRUE), 
                                        PA.strategy = 'random')
 
   
@@ -78,7 +80,7 @@ MyBiomodSF <- function(sp.n){
   ### Modelling 
   myBiomodModelOut <- BIOMOD_Modeling( 
     myBiomodData, 
-    models = c('SRE','CTA','RF','MARS','GBM'), 
+    models = c('MAXENT'), 
     models.options = myBiomodOption, 
     NbRunEval=1, 
     DataSplit=80, 
