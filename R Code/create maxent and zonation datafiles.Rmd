@@ -212,12 +212,11 @@ h(gda_maxent.data)
     for(i in seq(unique(gda.tm_maxent.data$species))){
       input <- gda.tm_maxent.data[gda.tm_maxent.data$species==unique(gda.tm_maxent.data$species)[i],]
       cell <- cellFromXY(hccrems.raster,input[,2:3])
-      dup <- duplicated(cell)
-      output <- input[!dup,]
+      output <- input[!duplicated(cell),]
       if(nrow(output)>min.records){
         export_maxent.data <- rbind(export_maxent.data,output)
         } 
-      rm(input,cell,dup,output)
+      rm(input,cell,output)
     }
 
 export.species <- unique(export_maxent.data$species)
