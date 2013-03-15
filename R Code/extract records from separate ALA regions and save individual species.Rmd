@@ -112,12 +112,12 @@ for (k in seq(taxa)){
     colnames(NC.input)[8] <- "Scientific.Name"
   SB.input <- read.csv(paste0("NSW Atlas downloads/Sydney Basin ",taxa[k],".csv"))
     colnames(SB.input)[8] <- "Scientific.Name"
-  BB.input <- read.csv(paste0("NSW Atlas downloads/Brigalow Belt South ",taxa[k],".csv"))
+  BB.input <- read.csv(paste0("NSW Atlas downloads/Liverpool Range ",taxa[k],".csv"))
     colnames(BB.input)[8] <- "Scientific.Name"
   for(i in seq(species.list)){
       NC.records <- extract("NSW Atlas downloads", "NSW North Coast",NC.input,species.list[i])
       SB.records <- extract("NSW Atlas downloads", "Sydney Basin",SB.input,species.list[i])
-      BB.records <- extract("NSW Atlas downloads", "Brigalow Belt South",BB.input,species.list[i])
+      BB.records <- extract("NSW Atlas downloads", "Liverpool Range",BB.input,species.list[i])
       
       all.records <- combine.records(NC.records, SB.records)
         all.records <- combine.records(all.records, BB.records)
