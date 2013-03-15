@@ -56,8 +56,7 @@ presence.absence <- function(x) { x[x<threshold] <- 0
 
 # open the selected sample file
   generate.pc.ascii <- function (filename, mask) {
-    sample.raster <- readGDAL(filename)
-    sample.raster <- raster(sample.raster)
+    sample.raster <- raster(filename)
     
     cat("\n","Loaded",filename)
     
@@ -71,27 +70,28 @@ presence.absence <- function(x) { x[x<threshold] <- 0
     plot(sample.raster, main=filename, axes=F) #original data
     plot(r_filt, main=paste0(radius,"m ",filename), axes=F) #filtered data
   
-  writeRaster(r_filt, paste0("/ascii files",filename, radius), overwrite=TRUE)
-    cat("\n","Saved",paste0(filename,radius),"in",paste0(getwd(),"/ascii files"),"\n","\n")
+  writeRaster(r_filt, paste0("ascii files/veg.",radius,filename), overwrite=TRUE)
+    cat("\n","Saved",paste0("veg",radius,filename),"in",paste0(getwd(),"/ascii files"),"\n","\n")
   }
 ```
 
 ```{r run_ghm_analysis}
-  setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/vegetation/GHM raster data")
+  setwd("~/GIS_data/Hunter/vegetation/GHM raster data")
 
-  veg_types <- c("woody_veg.asc","exotic_veg.asc","dry_sclero.asc","forest_wet.asc","rainforests.asc","lit_rainfor.asc","fresh_wet.asc","river_for.asc","mangrove.asc","saltmarshes.asc","shrublands.asc","west_grasslands.asc","wet_sclero.asc","woodlands.asc")
+  veg_types <- c("dry_sclero.asc","rainforests.asc","wet_sclero.asc","woodlands.asc","woody.asc")
 
 # create a sampling mask
-  ghm_mask <- readGDAL("ghm_mask.asc")
-  ghm_mask <- raster(ghm_mask)
-  ghm_mask[!is.na(ghm_mask)] <- 1
+#   ghm_mask <- raster("ghm_mask.asc")
+#   ghm_mask[!is.na(ghm_mask)] <- 1
 
-  hcr_mask <- readGDAL("C:/Users/awhitehead/Documents/GIS_data/Hunter/environment/environment clipped by cma/hcr_mask")
-  hcr_mask <- raster(hcr_mask)
-  hcr_mask[!is.na(hcr_mask)] <- 1
+#   hcr_mask <- raster("C:/Users/awhitehead/Documents/GIS_data/Hunter/environment/environment clipped by cma/hcr_mask")
+#   hcr_mask[!is.na(hcr_mask)] <- 1
+
+  hccrems_mask <- raster("C:/Users/awhitehead/Documents/GIS_data/Hunter/Plans/HCCREMS_AreaOfInterest/hccrems_mask.asc")
+    hccrems_mask[!is.na(hccrems_mask)] <- 1
         
 # get the resolution of the mask raster
-  resolution <- xres(hcr_mask)
+  resolution <- xres(hccrems_mask)
   
 ## Generate ascii files with percentage cover within 500 m radius
   radius <- resolution*5
@@ -101,7 +101,7 @@ presence.absence <- function(x) { x[x<threshold] <- 0
 
 for(i in seq(veg_types)) {
     
-  generate.pc.ascii(veg_types[i],hcr_mask)
+  generate.pc.ascii(veg_types[i],hccrems_mask)
   
  }
 
