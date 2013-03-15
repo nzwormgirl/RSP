@@ -1,0 +1,45 @@
+Analyse Maxent output files
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r setup}
+rm(list=ls())
+working.directory <- "C:/Users/awhitehead/Documents/GIS_data/Hunter/Maxent_files"
+setwd(working.directory)
+
+maxent.output <- read.csv("output/maxentResults.csv")
+
+n(maxent.output)
+
+```
+
+You can also embed plots, for example:
+
+```{r results}
+contribution <- cbind(maxent.output[,"Species"],maxent.output[,grep("contribution",colnames(maxent.output))])
+  colnames(contribution) <- gsub(".contribution","",colnames(contribution))
+
+mean.contribution <- d(colMeans(contribution[,-1]))
+  colnames(mean.contribution) <- c("mean")
+
+par(mfrow=c(2,1), mar=c(3,10,1,1))
+boxplot(contribution[,-1], horizontal=TRUE, las=1, main="percent contribution")
+abline(v=5,col="grey")
+points(as.numeric(factor(rownames(mean.contribution)))~mean.contribution$mean, col="red",pch="+")
+
+
+permutation <- cbind(maxent.output[,"Species"],maxent.output[,grep("permutation",colnames(maxent.output))])
+  colnames(permutation) <- gsub(".permutation.importance","",colnames(permutation))
+
+mean.permutation <- d(colMeans(permutation[,-1]))
+  colnames(mean.permutation) <- c("mean")
+
+boxplot(permutation[,-1], horizontal=TRUE, las=1, main="permutation importance")
+abline(v=5,col="grey")
+points(as.numeric(factor(rownames(mean.permutation)))~mean.permutation$mean, col="red",pch="+")
+
+```
+
