@@ -15,7 +15,7 @@ computer <- "UM"
 if(computer == "super") source("~/R code/Rprofile.r")
 if(computer == "UM") working.directory <- "C:/Users/awhitehead/Documents/GIS_data/Hunter/Maxent_files/ghm_environmental_data"
 
-setwd(working.directory)
+# setwd(working.directory)
 
 packages(raster)
 packages(rgdal)
@@ -50,28 +50,14 @@ NA|	Cleared	|  1
     # remove arcgis generated files from list
     if(length(grep("aux.xml",veg.files))>0) veg.files <- veg.files[-grep("aux.xml",veg.files)]
     if(length(grep("ovr",veg.files))>0) veg.files <- veg.files[-grep("ovr",veg.files)]
-  veg.rasters <- lapply(veg.files,raster)
-
-#   keith.raster <- veg.rasters[[7]]
-#     keith.raster[keith.raster==1] <- NA #cleared
-#     keith.raster[keith.raster==5] <- 3 # combine Wet sclerophyll forests
-#     keith.raster[keith.raster==10] <- 4 # combine dry sclerophyll forests
-#     keith.raster[keith.raster==7] <- 5 # combine wetlands
-#     keith.raster[keith.raster==8] <- 5 # combine wetlands
-#     keith.raster[keith.raster==11] <- 5 # combine wetlands
-#     keith.raster[keith.raster==9] <- 7 # reclassify grassy woodlands
-#     keith.raster[keith.raster==12] <- 1 # reclassify grasslands
-
-#   veg.rasters[[7]] <- keith.raster
-#     rm(keith.raster)
-  veg.rasters <- stack(veg.rasters)
+  veg.rasters <- stack(veg.files)  
 
   # topography
   (topo.files <- dir("topography", pattern="*.asc", recursive=T, full.names=T)) 
     # remove arcgis generated files from list
     if(length(grep("aux.xml",topo.files))>0) topo.files <- topo.files[-grep("aux.xml",topo.files)]
     if(length(grep("ovr",topo.files))>0) topo.files <- topo.files[-grep("ovr",topo.files)]  
-  topo.rasters <- stack(lapply(topo.files,raster))
+  topo.rasters <- stack(topo.files)
     
 
   # soils
@@ -79,14 +65,14 @@ NA|	Cleared	|  1
     # remove arcgis generated files from list
     if(length(grep("aux.xml",soil.files))>0) soil.files <- soil.files[-grep("aux.xml",soil.files)]
     if(length(grep("ovr",soil.files))>0) soil.files <- soil.files[-grep("ovr",soil.files)]  
-  soil.rasters <- stack(lapply(soil.files,raster))
+  soil.rasters <- stack(soil.files)
 
   # climate
   (climate.files <- dir("climate", pattern="*.asc", recursive=T, full.names=T)) 
     # remove arcgis generated files from list
     if(length(grep("aux.xml",climate.files))>0) climate.files <- climate.files[-grep("aux.xml",climate.files)]
     if(length(grep("ovr",climate.files))>0) climate.files <- climate.files[-grep("ovr",climate.files)]  
-  climate.rasters <- stack(lapply(climate.files,raster))
+  climate.rasters <- stack(climate.files)
 
 gc()
   
@@ -96,31 +82,32 @@ gc()
 ```{r standardise_rasters}
 # stack all environmental rasters together
   envi.rasters<-stack(region.mask,veg.rasters, topo.rasters, soil.rasters, climate.rasters)
+    envi.rasters.names <- names(envi.rasters)
 
 # standardise rasters  
   # calculate mean raster from stack to identify all NA values
   envi.mask <- calc(envi.rasters,mean)
+    envi.mask[!is.na(envi.mask)] <-1
     gc()
   # function to generate presence mask
-  presence.mask <- function(x) { x[!is.na(x)] <- 1} 
-  # calculate presence mask
-  envi.mask.fun<-calc(envi.mask,presence.mask)
-    gc()
+#   presence.mask <- function(x) { x[!is.na(x)] <- 1} 
+#   # calculate presence mask
+#   envi.mask.fun<-calc(envi.mask,presence.mask)
+#     gc()
   # multiply all layers in stack by presence mask  
-  envi.rasters.mask <- envi.rasters*envi.mask.fun
+  envi.rasters.mask <- envi.rasters*envi.mask
     gc()
   # restack as output is a raster brick
   envi.rasters.mask <- stack(envi.rasters.mask)
+    names(envi.rasters.mask) <- envi.rasters.names
     gc()
-  # unstack to generate raster list for export
-  envi.rasters.mask.list<-unstack(envi.rasters.mask)
-    gc()
+  
 
   # write each raster to disk
   
   for(i in 1:length(envi.rasters.mask.list)){
-    cat("\n", "Writing ",as.character(names(envi.rasters.mask.list[[i]])), "to ", getwd())
-    writeRaster(envi.rasters.mask.list[[i]], paste0("standardised rasters/",names(envi.rasters.mask.list[[i]]),".asc"))
+    cat("\n", "Writing ",as.character(envi.rasters.names[i]), "to ", getwd())
+    writeRaster(envi.rasters.mask.list[[i]], paste0("standardised_rasters/",envi.rasters.names[i],".asc"), overwrite=T)
         gc()
   }
 
