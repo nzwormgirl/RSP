@@ -46,32 +46,20 @@ NA|	Cleared	|  1
   region.mask <- raster("hccrems_mask.asc")
 
   # vegetation
-  (veg.files <- dir("vegetation", pattern="*.asc", recursive=T, full.names=T)) 
-    # remove arcgis generated files from list
-    if(length(grep("aux.xml",veg.files))>0) veg.files <- veg.files[-grep("aux.xml",veg.files)]
-    if(length(grep("ovr",veg.files))>0) veg.files <- veg.files[-grep("ovr",veg.files)]
+  (veg.files <- dir("vegetation", pattern="*.asc$", recursive=T, full.names=T))     
   veg.rasters <- stack(veg.files)  
 
   # topography
-  (topo.files <- dir("topography", pattern="*.asc", recursive=T, full.names=T)) 
-    # remove arcgis generated files from list
-    if(length(grep("aux.xml",topo.files))>0) topo.files <- topo.files[-grep("aux.xml",topo.files)]
-    if(length(grep("ovr",topo.files))>0) topo.files <- topo.files[-grep("ovr",topo.files)]  
+  (topo.files <- dir("topography", pattern="*.asc$", recursive=T, full.names=T)) 
   topo.rasters <- stack(topo.files)
     
 
   # soils
-  (soil.files <- dir("soils", pattern="*.asc", recursive=T, full.names=T)) 
-    # remove arcgis generated files from list
-    if(length(grep("aux.xml",soil.files))>0) soil.files <- soil.files[-grep("aux.xml",soil.files)]
-    if(length(grep("ovr",soil.files))>0) soil.files <- soil.files[-grep("ovr",soil.files)]  
+  (soil.files <- dir("soils", pattern="*.asc$", recursive=T, full.names=T)) 
   soil.rasters <- stack(soil.files)
 
   # climate
-  (climate.files <- dir("climate", pattern="*.asc", recursive=T, full.names=T)) 
-    # remove arcgis generated files from list
-    if(length(grep("aux.xml",climate.files))>0) climate.files <- climate.files[-grep("aux.xml",climate.files)]
-    if(length(grep("ovr",climate.files))>0) climate.files <- climate.files[-grep("ovr",climate.files)]  
+  (climate.files <- dir("climate", pattern="*.asc$", recursive=T, full.names=T)) 
   climate.rasters <- stack(climate.files)
 
 gc()
@@ -89,14 +77,11 @@ gc()
   envi.mask <- calc(envi.rasters,mean)
     envi.mask[!is.na(envi.mask)] <-1
     gc()
-  # function to generate presence mask
-#   presence.mask <- function(x) { x[!is.na(x)] <- 1} 
-#   # calculate presence mask
-#   envi.mask.fun<-calc(envi.mask,presence.mask)
-#     gc()
+  
   # multiply all layers in stack by presence mask  
   envi.rasters.mask <- envi.rasters*envi.mask
     gc()
+
   # restack as output is a raster brick
   envi.rasters.mask <- stack(envi.rasters.mask)
     names(envi.rasters.mask) <- envi.rasters.names
