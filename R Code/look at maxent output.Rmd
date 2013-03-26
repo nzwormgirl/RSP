@@ -7,10 +7,10 @@ When you click the **Knit HTML** button a web page will be generated that includ
 
 ```{r setup}
 rm(list=ls())
-working.directory <- "C:/Users/awhitehead/Documents/GIS_data/Hunter/Maxent_files"
+working.directory <- "//654cw-20990/Users/awhitehead/Documents/RSP/data/Maxent_files/output_21.03.13"
 setwd(working.directory)
 
-maxent.output <- read.csv("output/maxentResults.csv")
+maxent.output <- read.csv("maxentResults.csv")
 
 n(maxent.output)
 
