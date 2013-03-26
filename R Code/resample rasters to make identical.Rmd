@@ -1,0 +1,81 @@
+Title
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r setup_functions}
+#load packages and set working directory
+rm(list=ls())
+start.time <- proc.time()
+
+computer <- "UM"
+
+if(computer == "super") source("~/R code/Rprofile.r")
+if(computer == "UM") {
+  social.directory <- "C:/Users/awhitehead/Documents/GIS_data/Hunter/social values/gda_tm"
+  species.directory <- "C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/unconstrained scenario"
+  output.directory <- "C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/negative social values"
+  }
+
+setwd(output.directory)
+
+packages(raster)
+packages(rgdal)
+
+```
+
+
+```{r open_rasters}
+
+e <- extent(290639,434739,6315827,6402784)
+empty.raster <- raster(e)
+res(empty.raster) <- 500
+projection(empty.raster) <- "+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+
+hunter <- raster("C:/Users/awhitehead/Documents/GIS_data/Hunter/data from Brendan/data/region/regiongrid.asc")
+
+hunter_new <- aggregate(hunter,fact=5, na.rm=T)
+  hunter_new <- resample(hunter_new,empty.raster)
+
+  # social
+  (social.files <- dir(social.directory,pattern=".asc$", recursive=F, full.names=F)) 
+  social.rasters <- lapply(paste0(social.directory,"/",social.files),raster)
+
+for(i in seq(social.files)){
+  r <- social.rasters[[i]]
+  social.rasters[[i]] <- resample(r,empty.raster)
+#   plot(social.rasters[[i]] <- mask(r, hunter_new), main=names(social.rasters[[i]]))
+}
+
+social.stack <- stack(social.rasters,hunter_new)
+  names.social.stack <- names(social.stack)
+
+envi.mask <- calc(social.stack,mean)
+    envi.mask[!is.na(envi.mask)] <-1
+
+cropped.social.stack <- social.stack*envi.mask
+  names(cropped.social.stack) <- names.social.stack
+cropped.social.stack <- stack(cropped.social.stack)
+
+for(i in 1:length(names.social.stack)){
+    cat("\n", "Writing ",as.character(names.social.stack[i]), "to ", getwd())
+    writeRaster(cropped.social.stack[[i]], paste0(names.social.stack[i],".asc"), overwrite=T)
+  }
+
+#species
+  (species.files <- dir(species.directory,pattern=".asc$", recursive=F, full.names=F)) 
+  species.rasters <- lapply(paste0(species.directory,"/",species.files),raster)
+
+for(i in seq(species.files)){
+  r <- species.rasters[[i]]
+  r <- aggregate(r,fact=5, na.rm=T)
+  r <- resample(r,empty.raster)
+  cat("\n", "Writing ",as.character(names(r)), "to ", getwd())
+  plot(mask(r, envi.mask ,filename=species.files[i], overwrite=T), main=names(r))
+}
+
+
+cat("\n","This analysis took",round((proc.time()-start.time)[3]/60,0), "minutes to run with",length(social.files)+length(species.files), "rasters.")
+```
