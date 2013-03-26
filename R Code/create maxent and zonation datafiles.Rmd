@@ -22,6 +22,7 @@ packages(ggmap)
 packages(maptools)
 packages(sp)
 packages(rgdal)
+packages(raster)
 
 setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/")
 
@@ -231,10 +232,11 @@ The `zonation.spp` table lists each species and the required input for zonation.
   
   zonation.spp <- d(weight=rep(1.0,length(export.species)), alpha=1.0, bqp.row=1.0, bqp.buffer=1.0, cell.removal=1.0, species=NA )
     zonation.spp$species <- paste0(export.species,".asc")
+    zonation.spp$species <- gsub(" ","_",zonation.spp$species)
 
 h(zonation.spp)
 
-if(save.output ==TRUE) write.table(zonation.spp,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/maxent data/zonation.spp.txt"),sep="/t",row.names=FALSE, col.names=FALSE)
+if(save.output ==TRUE) write.table(zonation.spp,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/maxent data/zonation.spp.txt"),sep="\t",row.names=FALSE, col.names=FALSE)
 
 cat("\n", "Zonation.spp file saved with default values for all species")
 ```
