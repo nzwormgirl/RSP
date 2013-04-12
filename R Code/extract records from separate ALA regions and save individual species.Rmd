@@ -50,12 +50,18 @@ combine.records <- function (NC.records, SB.records) {
 ```
 
 ```{r analysis_ALA}
-setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data")
+setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data")
 
 # open the list of threatened and interesting species for potential analysis
 protected.species <- read.csv("IBRA threatened species list.csv")
   threatened.species <- rbind(protected.species[grep("E", protected.species$NSW.status),], protected.species[grep("V", protected.species$NSW.status),])
   threatened.species <- threatened.species[!duplicated(threatened.species),]
+  threatened.species$mnes <- "FALSE"
+
+#open mnes species list
+mnes.species <- read.csv("EPBC list species NSW.csv", skip=1)
+
+threatened.species$mnes[which(mnes.species$Scientific.Name %in% threatened.species$Scientific.Name ==TRUE)] <- "TRUE"
   
 # the taxanomic blocks that the data were downloaded in
 taxa <- c("mammals", "amphibians", "plants", "reptiles","birds","arthropods")
