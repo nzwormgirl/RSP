@@ -4,14 +4,17 @@ This script extracts records of threatened species (& other species we are inter
 
 Data were downloaded by selecting the NSW North Coast and Sydney Basin bioregions and then downloading all records within these region in large taxonomic blocks.  
  
-The script uses a function `extract` to identify whether data for each species in `species.list` has been downloaded from the regional ALA database based on the scientific name.  Note that sub-species will be lumped together unless they are specifically listed in `species.list`. If data exists, the records for each species are saved as a separate csv file by their scientific name.  Data are not filtered by data or location quality at this stage The master threatened species file is updated to reflect that the data has been downloaded and lists the number of records for that species.  
+The script uses a function `extract` to identify whether data for each species in `species.list` has been downloaded from the regional ALA database based on the scientific name.  Note that sub-species will be lumped together unless they are specifically listed in `species.list`. If data exists, the records for each species are saved as a separate csv file by their scientific name.  Data are not filtered by data or location quality at this stage. The master threatened species file is updated to reflect that the data has been downloaded and lists the number of records for that species from each database.  
 
-The script loops through each taxonomic group and extracts the records for species listed in `threatened species`, then combines the regional data together for each species.  A print out to the screen lists the number of records successfully downloaded for each available species and this data is also updated in the threatened species list.
+The script loops through each taxonomic group and extracts the records for species listed in `threatened species` within each region.  It then combines the regional data together for each species.  A print out to the screen lists the number of records successfully downloaded for each available species and this data is also updated in the threatened species list.
+
 
 ```{r functions, highlight=TRUE}
 # set working directory
 rm(list=ls())
+setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data")
 
+# a function that binds two dataframes together by rows, keeping only columns with the same names
 rbind.match.columns <- function (input1,input2) {
     n.input1 <- ncol(input1)
     n.input2 <- ncol(input2)
@@ -27,6 +30,7 @@ rbind.match.columns <- function (input1,input2) {
     output <- rbind(input1[,column.names], input2[,column.names])
   }
 
+# a function that extracts records for individual species based on the given region
 extract <- function(folder, region, input,species){
   records <- input[grep(species,input$Scientific.Name),]
   if(nrow(records)>0) {
@@ -35,6 +39,7 @@ extract <- function(folder, region, input,species){
   } 
 }
 
+# a function that combines records from each region, allowing for the fact that they may be absent from a region
 combine.records <- function (NC.records, SB.records) {
   tryCatch({
             rbind.match.columns(NC.records,SB.records)
@@ -46,25 +51,26 @@ combine.records <- function (NC.records, SB.records) {
               } else cat("")
             })
   }
+
+#open mnes species list
+mnes.species <- read.csv("EPBC list species NSW.csv", skip=1)
+
+# open the list of threatened and interesting species for potential analysis
+protected.species <- read.csv("IBRA threatened species list.csv")
+   protected.species$mnes <- "FALSE"
+  protected.species$mnes[which(mnes.species$Scientific.Name %in% protected.species$Scientific.Name ==TRUE)] <- "TRUE"
+
+# generate threatened species list
+threatened.species <- rbind(protected.species[grep("E", protected.species$NSW.status),], protected.species[grep("V", protected.species$NSW.status),], protected.species[grep("TRUE", protected.species$mnes),])
+  threatened.species <- threatened.species[!duplicated(threatened.species),]
+ 
+# the taxanomic blocks that the data were downloaded in
+taxa <- c("mammals", "amphibians", "plants", "reptiles","birds","arthropods")
           
 ```
 
 ```{r analysis_ALA}
 setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data")
-
-# open the list of threatened and interesting species for potential analysis
-protected.species <- read.csv("IBRA threatened species list.csv")
-  threatened.species <- rbind(protected.species[grep("E", protected.species$NSW.status),], protected.species[grep("V", protected.species$NSW.status),])
-  threatened.species <- threatened.species[!duplicated(threatened.species),]
-  threatened.species$mnes <- "FALSE"
-
-#open mnes species list
-mnes.species <- read.csv("EPBC list species NSW.csv", skip=1)
-
-threatened.species$mnes[which(mnes.species$Scientific.Name %in% threatened.species$Scientific.Name ==TRUE)] <- "TRUE"
-  
-# the taxanomic blocks that the data were downloaded in
-taxa <- c("mammals", "amphibians", "plants", "reptiles","birds","arthropods")
 
 # loop through each taxonomic group and extract records based on the threatened species list
 for (k in seq(taxa)){
@@ -100,15 +106,7 @@ write.csv(protected.species, "IBRA threatened species list.csv", row.names=FALSE
 
 
 ```{r analysis_NSW}
-setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/species point data")
-
-# open the list of threatened and interesting species for potential analysis
-protected.species <- read.csv("IBRA threatened species list.csv")
-  threatened.species <- rbind(protected.species[grep("E", protected.species$NSW.status),], protected.species[grep("V", protected.species$NSW.status),])
-  threatened.species <- threatened.species[!duplicated(threatened.species),]
-  
-# the taxanomic blocks that the data were downloaded in
-taxa <- c("mammals", "amphibians", "plants", "reptiles","arthropods","birds")
+setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data")
 
 # loop through each taxonomic group and extract records based on the threatened species list
 for (k in seq(taxa)){
@@ -144,4 +142,4 @@ write.csv(protected.species, "IBRA threatened species list.csv", row.names=FALSE
 
 ```
 
-*This file was last updated on 12 March 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*
+*This file was last updated on 12 April 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*
