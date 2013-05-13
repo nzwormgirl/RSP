@@ -3,14 +3,12 @@ Create data files for Maxent and Zonation analyses
 
 This script takes the downloaded data from the [Australian Living Atlas](http://www.ala.org.au/species-by-location/) and [NSW Atlas](http://www.environment.nsw.gov.au/atlaspublicapp/UI_Modules/ATLAS_/AtlasSearch.aspx) for all specified species, as well as the data from the brut dataset, and produces:   
 1. a pdf of maps of all species locations (if `save.maps == TRUE`)   
-2. a csv file of location points for input into Maxent `maxent.data`   
+2. a csv file of location points for all species for input into Maxent `maxent.data`   
 3. a spp file for input into Zonation that lists all of the species ascii files and other attributes `zonation.spp`  
 
 The first part of the script takes the brut dataset where species have been coded into taxonomic groups and identifies species that have more than the specified minimum number of records that fall within the Hunter region as masked by a shapefile. We extract all records for these species from within the NSW North Coast and Sydney Basin bioregions  
 
-Then we run a loop that runs through the species listed as *Vulnerable* or *Endangered* under the NSW legislation on the NSW database that have more than the minumim number of records and extracts the latitude and longitude of all records in the ALA and NSW databases.   
-
-Data are only retained if they occur after a specified date.
+Then we run a loop that runs through the species listed as *Vulnerable* or *Endangered* under the NSW legislation on the NSW database that have more than the minumim number of records and extracts the latitude and longitude of all records in the ALA and NSW databases. Species that are listed as *MNES* species by the EPBC Act are also treated in the same way.  Data are only retained if they occur after a specified date.
 
 
 ```{r setup, fig.width=7, fig.height=6, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
@@ -22,15 +20,17 @@ packages(ggmap)
 packages(maptools)
 packages(sp)
 packages(rgdal)
-packages(raster)
+# packages(raster)
 
 setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/")
 
-# save the maps as a pdf
-  save.maps <- TRUE
-  save.output <- TRUE
-  include.brut <- FALSE
+# set output options
+  save.maps <- TRUE  # save maps as pdf
+  save.output <- TRUE # save maxent data as csv file
+  include.brut <- FALSE # include brut dataset in maxent file
+  include.ALA <- FALSE # include ALA data in maxent file
 
+# a function that combines records from each region, allowing for the fact that they may be absent from a region
 combine.records <- function (NC.records, SB.records) {
   tryCatch({
             rbind(NC.records,SB.records)
@@ -44,8 +44,10 @@ combine.records <- function (NC.records, SB.records) {
   }
 
 # set the google map background for the species plots and create background map
-  map <- get_map(location = c(151.250,-32.490), zoom = 8, maptype="hybrid", color="bw")
-  hunter.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Hunter/data from Brendan/data/variables/projected GDA94/poly_lower_hunter.shp")
+  map <- get_map(location = c(151.250,-32.490), zoom = 8, maptype="terrain", color="bw")
+
+# import regional shapefiles for mapping and data filtering  
+hunter.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Hunter/data from Brendan/data/variables/projected GDA94/poly_lower_hunter.shp")
     hunter.mask.data <- fortify(hunter.mask)
   cma.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Hunter/Plans/HCR_CMA/HCR_CMA_GDA94.shp")
     cma.mask.data <- fortify(cma.mask)
@@ -53,11 +55,9 @@ combine.records <- function (NC.records, SB.records) {
     ibra.mask.data <- fortify(ibra.mask)
   hccrem.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Hunter/Plans/HCCREMS_AreaOfInterest/HCCREMS_AoI.shp")
     hccrem.mask.data <- fortify(hccrem.mask)
-    
-  print(base.map <- ggmap(map) + geom_polygon(aes(x = long, y = lat, group = group), data=hunter.mask.data, colour = 'yellow', fill = 'black', alpha = .1, size = .3) + geom_polygon(aes(x = long, y = lat, group = group), data=hccrem.mask.data, colour = 'orange', fill = 'black', alpha = .1, size = .3)) #+ geom_polygon(aes(x = long, y = lat, group = group), data=cma.mask.data, colour = 'pink', fill = 'black', alpha = .1, size = .3) + geom_polygon(aes(x = long, y = lat, group = group), data=ibra.mask.data, colour = 'light blue', fill = 'black', alpha = .1, size = .3)  
 
- # set specifications for pdf file if save.maps == TRUE
-    if(save.maps == TRUE) pdf("species point data maps.pdf",paper="a4r")
+#create base map for species mapping
+  print(base.map <- ggmap(map) + geom_polygon(aes(x = long, y = lat, group = group), data=hunter.mask.data, colour = 'yellow', fill = 'black', alpha = .1, size = .3) + geom_polygon(aes(x = long, y = lat, group = group), data=hccrem.mask.data, colour = 'orange', fill = 'black', alpha = .1, size = .3)) #+ geom_polygon(aes(x = long, y = lat, group = group), data=cma.mask.data, colour = 'pink', fill = 'black', alpha = .1, size = .3) + geom_polygon(aes(x = long, y = lat, group = group), data=ibra.mask.data, colour = 'light blue', fill = 'black', alpha = .1, size = .3)  
 
 # The minimum number of records required for a species to be included  
   min.records <- 30
@@ -65,23 +65,30 @@ combine.records <- function (NC.records, SB.records) {
 # The earliest date for selecting records
   min.date <- strptime("01/01/1990", "%d/%m/%Y")
 
+# Minimum allowable spatial accuracy value (in metres)
+  min.accuracy <- 2500
+
 # open species list
   protected.species <- read.csv("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/IBRA threatened species list.csv")
-  threatened.species <- rbind(protected.species[grep("E", protected.species$NSW.status),], protected.species[grep("V", protected.species$NSW.status),])
-    threatened.species <- threatened.species[!duplicated(threatened.species),]
 
-#identify which species have more than the minimum number of records across both atlases
+# identify the threatened species of interest for analysis
+  threatened.species <- rbind(protected.species[grep("E", protected.species$NSW.status),], protected.species[grep("V", protected.species$NSW.status),], protected.species[grep("TRUE", protected.species$mnes),])
+  threatened.species <- threatened.species[!duplicated(threatened.species),]
+
+# identify which species have more than the minimum number of records across both atlases
 species.list <- threatened.species$Scientific.Name[rowSums(threatened.species[,c("ALA.records","NSW.records")],na.rm=TRUE)>min.records]
   species.list <- species.list[!is.na(species.list)==TRUE]
 
 # create empty dataframes for the output data
   maxent.data <- d(species=NULL,longitude=NULL,latitude=NULL, database=NULL)
+  ssi.list <- NA
 
 ```
 
 Species are kept for analysis in Maxent if they have more than `r min.records` records within the Hunter region that were observed after `r min.date`. 
 
 ```{r brut_analysis, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
+# this is based on the NCAARF nationwide dataset and selects the species that have sufficient data within the Hunter region
 
 if(include.brut == TRUE) {
 
@@ -112,7 +119,8 @@ if(include.brut == TRUE) {
       
   #     if(nrow(input) > min.records){
         brut.maxent.data <- rbind(brut.maxent.data,input[,c("species","longitude", "latitude", "databse")])
-        print(sp.map <- base.map + geom_point(aes(x = longitude, y = latitude,color=database,shape=species), data = input, alpha=0.5))
+        sp.map <- base.map + geom_point(aes(x = longitude, y = latitude,color=database,shape=species), data = input, alpha=0.5)
+        print(sp.map)
         cat("\n", "Adding", nrow(input), "records for", as.character(input$species[i]), "to maxent data")
   #     }
     }
@@ -122,66 +130,82 @@ if(include.brut == TRUE) {
 ```
 
 ```{r ALA_NSW_analysis, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
+# this takes data from the ALA and NSW atlases and identifies which have sufficient data within the Hunter region
+
 setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/")
 atlas.maxent.data <- maxent.data
+
+# set specifications for pdf file if save.maps == TRUE
+    if(save.maps == TRUE & include.ALA == TRUE) pdf("species point data maps - ALA & NSW.pdf",paper="a4r")
+    if(save.maps == TRUE & include.ALA == FALSE) pdf("species point data maps - NSW.pdf",paper="a4r")
 
 # run loop to extract data from ALA and NSW atlas data by species 
 for (i in seq(species.list)){
   # extract ALA data
-  if (!is.na(threatened.species$Downloaded.ALA[threatened.species$Scientific.Name == species.list[i]]) == TRUE){
-    ALA.data <- read.csv(paste0("ALA data/",species.list[i],".csv"))
-      ALA.data <- ALA.data[!is.na(ALA.data$Year...parsed >= (min.date$year+1900)),]
-      ALA.labels <- c("Latitude...processed", "Longitude...processed")
-    colnames(ALA.data)[which(names(ALA.data) %in% ALA.labels)] <- c("latitude", "longitude")
-    ALA.data$index <- paste(sprintf("%.6f",ALA.data$latitude), sprintf("%.6f",ALA.data$longitude))
-    ALA.data$database <- "ALA"
-    ALA.data$species <- species.list[i]
-  } else ALA.data <- NULL
+ if(include.ALA == TRUE) {
+    if (!is.na(threatened.species$Downloaded.ALA[threatened.species$Scientific.Name == species.list[i]]) == TRUE){
+      ALA.data <- read.csv(paste0("ALA data/",species.list[i],".csv"))
+        ALA.data <- ALA.data[!is.na(ALA.data$Year...parsed >= (min.date$year+1900)),]
+  #       ALA.data <- ALA.data[ALA.data$Coordinate.Uncertainty.in.Metres...parsed <= min.accuracy,]
+        ALA.labels <- c("Latitude...processed", "Longitude...processed")
+      colnames(ALA.data)[which(names(ALA.data) %in% ALA.labels)] <- c("latitude", "longitude")
+      ALA.data$index <- paste(sprintf("%.6f",ALA.data$latitude), sprintf("%.6f",ALA.data$longitude))
+      ALA.data$database <- "ALA"
+      ALA.data$species <- species.list[i]
+      ALA.data$accuracy.digits <- nchar(ALA.data$index,type="chars")
+    } else ALA.data <- NULL
+  } else  ALA.data <- NULL
 
   #extract NSW Atlas data
   if (!is.na(threatened.species$Downloaded.NSW[threatened.species$Scientific.Name == species.list[i]]) == TRUE){
     NSW.data <- read.csv(paste0("NSW Atlas data/",species.list[i],".csv"))
       NSW.data$Rdate <- strptime(NSW.data$DateLast, "%d/%m/%Y")
       NSW.data <- NSW.data[!is.na(NSW.data$Rdate >= min.date),]
-    colnames(NSW.data)[c(21:22)] <- c("latitude", "longitude")
+    colnames(NSW.data)[c(23:24)] <- c("latitude", "longitude")
     NSW.data$index <- paste(sprintf("%.6f",NSW.data$latitude), sprintf("%.6f",NSW.data$longitude))
     NSW.data$database <- "NSW"
     NSW.data$species <- species.list[i]
   } else NSW.data <- NULL
   
   ALA.NSW.data <- combine.records(ALA.data[,c("species","longitude","latitude","database")],NSW.data[,c("species","longitude","latitude","database")])
-  coordinates(ALA.NSW.data) <- c("longitude", "latitude")
+ 
+ tryCatch({
+   coordinates(ALA.NSW.data) <- c("longitude", "latitude")
+    
+    hccrem.sp <- ALA.NSW.data[hccrem.mask,]
+      hccrem.sp <- as.data.frame(hccrem.sp) 
   
-  hccrem.sp <- ALA.NSW.data[hccrem.mask,]
-    hccrem.sp <- as.data.frame(hccrem.sp) 
-
-  # only include species if more than the minimum number of records occur in the hunter
-    in.hunter <- nrow(hccrem.sp)
+    # only include species if more than the minimum number of records occur in the hunter
+      in.hunter <- nrow(hccrem.sp)
+    
+    # produce maps of the distribution of each species
+    if(in.hunter >= min.records) {
+      sp.map <- base.map + geom_point(aes(x = longitude, y = latitude,color=database, shape=species), data = hccrem.sp, alpha=0.5) + ggtitle(paste(in.hunter, "records")) + scale_fill_discrete(labels=paste("ALA -",nrow(hccrem.sp[hccrem.sp$database=="ALA",])))
+      print(sp.map)
+    
+    # output data for maxent analyses
+      atlas.maxent.data <- rbind(atlas.maxent.data,hccrem.sp)
+      cat("\n", "Adding", in.hunter, "records for", as.character(species.list[i]), "to maxent data")
   
-  # produce maps of the distribution of each species
-  if(in.hunter > min.records) {
-    print(sp.map <- base.map + geom_point(aes(x = longitude, y = latitude,color=database, shape=species), data = hccrem.sp, alpha=0.5))
-  
-  # output data for maxent analyses
-    atlas.maxent.data <- rbind(atlas.maxent.data,hccrem.sp)
-    cat("\n", "Adding", in.hunter, "records for", as.character(species.list[i]), "to maxent data")
-
-    }
-  
-  # remove all species-specific datafiles, so they don't mess up the next round of the loop
-  suppressWarnings(rm(ALA.data, NSW.data, ALA.NSW.data, hccrem.sp,in.hunter))
-  gc()
+      } else {
+        # list species with less than minimum records for inclusion as species of special interest
+        ssi.list <- append(ssi.list,as.character(unique(hccrem.sp$species)))
+      }
+    
+    # remove all species-specific datafiles, so they don't mess up the next round of the loop
+    suppressWarnings(rm(ALA.data, NSW.data, ALA.NSW.data, hccrem.sp,in.hunter,sp.map))
+    gc()
+ 
+ }, error=function(err) cat(""))
 }
 
 # close pdf file
   if(save.maps == TRUE) dev.off()
 
-  # print sample map for RMarkdown
-  print(sp.map)
 ```
 
 
-These are combined together in `maxent.data` where there are `r nrow(maxent.data)` records for `r (length(species.list) + n.species)` species.  Note that there may be duplicate records in these files but they should be filtered out by Maxent. A map of the distribution of each species is saved in a pdf file (*C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/species point data maps.pdf*)
+These are combined together in `maxent.data` where there are `r nrow(maxent.data)` records for `r (length(species.list) + n.species)` species.  A map of the distribution of each species is saved in a pdf file (*C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/species point data maps.pdf*)
 
 ```{r export_maxent.data, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
 if(include.brut == TRUE) {
@@ -216,29 +240,65 @@ h(gda_maxent.data)
       output <- input[!duplicated(cell),]
       if(nrow(output)>min.records){
         export_maxent.data <- rbind(export_maxent.data,output)
+        if(include.ALA==TRUE) protected.species$final.ALA.NSW.records[protected.species$Scientific.Name==unique(gda.tm_maxent.data$species)[i]] <- nrow(output)
+        if(include.ALA==FALSE) protected.species$final.NSW.records[protected.species$Scientific.Name==unique(gda.tm_maxent.data$species)[i]] <- nrow(output)
         } 
       rm(input,cell,output)
     }
 
 export.species <- unique(export_maxent.data$species)
                                   
-if(save.output ==TRUE) write.csv(export_maxent.data, "C:/Users/awhitehead/Documents/GIS_data/Hunter/Maxent_files/species_data/maxent.data.csv",row.names=FALSE)
+# save data for species with greater than the minimum number of records after the minimum date in the Hunter region to one file for Maxent analysis
+if(save.output ==TRUE & include.ALA == TRUE) {
+  write.csv(export_maxent.data, "C:/Users/awhitehead/Documents/GIS_data/Hunter/Maxent_files/species_data/maxent.data_ALA.NSW.csv",row.names=FALSE)
+  } 
+if(save.output ==TRUE & include.ALA == FALSE) {
+  write.csv(export_maxent.data, "C:/Users/awhitehead/Documents/GIS_data/Hunter/Maxent_files/species_data/maxent.data_NSW.csv",row.names=FALSE)
+}
+  
+# save changes to the protected species file  
+  write.csv(protected.species, "C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/IBRA threatened species list.csv", row.names=FALSE)
 
 cat("\n", nrow(export_maxent.data), "records for", length(export.species), "species exported to maxent.data.csv")
+  }
 ```
 The `zonation.spp` table lists each species and the required input for zonation.  These are currently all set to `1` and will require some tinkering as we get further down the line. This assumes that we will run all the listed species in Maxent from `maxent.data.csv`, creating all the relevant ascii files. *Or we will use this same data in biomod2.*
 
 ```{r export_zonation.file, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
+# this code block produces two species lists for zonation analyses based on the above data: one with all threatened species with sufficient data for the maxent analysis and one with just the MNES species
   
   zonation.spp <- d(weight=rep(1.0,length(export.species)), alpha=1.0, bqp.row=1.0, bqp.buffer=1.0, cell.removal=1.0, species=NA )
     zonation.spp$species <- paste0(export.species,".asc")
     zonation.spp$species <- gsub(" ","_",zonation.spp$species)
 
+mnes.export.species <- export.species[which(export.species %in% protected.species$Scientific.Name[protected.species$mnes == TRUE])]
+
+mnes.zonation.spp <- d(weight=rep(1.0,length(mnes.export.species)), alpha=1.0, bqp.row=1.0, bqp.buffer=1.0, cell.removal=1.0, species=NA )
+    mnes.zonation.spp$species <- paste0(mnes.export.species,".asc")
+    mnes.zonation.spp$species <- gsub(" ","_",mnes.zonation.spp$species)
+
 h(zonation.spp)
+  
+# species of special interest
+  ssi.list <- ssi.list[!is.na(ssi.list)]
+  ssi.zonation.spp <- d(weight=rep(1.0,length(ssi.list)), alpha=1.0, bqp.row=1.0, bqp.buffer=1.0, cell.removal=1.0, species=NA )
+    ssi.zonation.spp$species <- paste0(ssi.list,".asc")
+    ssi.zonation.spp$species <- gsub(" ","_",ssi.zonation.spp$species)
+  
+  # mnes species of special interest
+  mnes.ssi.list <- ssi.list[which(ssi.list %in% protected.species$Scientific.Name[protected.species$mnes == TRUE])]
+  mnes.ssi.zonation.spp <- d(weight=rep(1.0,length(mnes.ssi.list)), alpha=1.0, bqp.row=1.0, bqp.buffer=1.0, cell.removal=1.0, species=NA )
+    mnes.ssi.zonation.spp$species <- paste0(mnes.ssi.list,".asc")
+    mnes.ssi.zonation.spp$species <- gsub(" ","_",mnes.ssi.zonation.spp$species)
 
-if(save.output ==TRUE) write.table(zonation.spp,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/maxent data/zonation.spp.txt"),sep="\t",row.names=FALSE, col.names=FALSE)
+if(save.output ==TRUE) {
+  write.table(zonation.spp,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/maxent data/zonation.spp.txt"),sep="\t",row.names=FALSE, col.names=FALSE)
+    write.table(mnes.zonation.spp,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/maxent data/mnes.zonation.spp.txt"),sep="\t",row.names=FALSE, col.names=FALSE)
+  write.table(ssi.zonation.spp,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/maxent data/ssi.zonation.spp.txt"),sep="\t",row.names=FALSE, col.names=FALSE)
+  write.table(mnes.ssi.zonation.spp,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/maxent data/mnes.ssi.zonation.spp.txt"),sep="\t",row.names=FALSE, col.names=FALSE)
+}
 
-cat("\n", "Zonation.spp file saved with default values for all species")
+cat("\n", "zonation.spp file saved with default values for all",length(export.species),"species", "\n", "mnes.zonation.spp file saved with default values for all",length(mnes.export.species),"species","\n", "ssi.zonation.spp file saved with default values for all",length(ssi.list),"species","\n", "mnes.ssi.zonation.spp file saved with default values for all",length(mnes.ssi.list),"species")
 ```
 
-*This file was last updated on 13 March 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*
+*This file was last updated on 30 April 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*
