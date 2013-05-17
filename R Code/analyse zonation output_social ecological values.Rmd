@@ -185,60 +185,59 @@ output$no.cells[i] <- sum(getValues(overlay(conservation.high,r,fun=mean)),na.rm
 ```{r ReplacementCostPlots}
 
 colours <- brewer.pal(5,"Spectral")
-  colours[3] <- "#267300"
-colour.scenarios <- d(scenarios, hex=NA, line=NA)
-  colour.scenarios$hex[1] <- colours[4]
-  colour.scenarios$hex[2] <- colours[5]
-  colour.scenarios$hex[3] <- colours[2]
-  colour.scenarios$hex[4] <- colours[3]
+#   colours[3] <- "#267300"
+colour.scenarios <- d(scenarios, hex=NA, line=1, line.width=1)
+  colour.scenarios[1,c("hex")] <- c("black"); colour.scenarios[1,c("line","line.width")] <- c(1,1.5)
+  colour.scenarios[2,c("hex")] <- c("grey30"); colour.scenarios[2,c("line","line.width")] <- c(1,1.5)
+  colour.scenarios[3,c("hex")] <- c("grey40"); colour.scenarios[3,c("line","line.width")] <- c(1,1.5)
+  colour.scenarios[4,c("hex")] <- c("grey25"); colour.scenarios[4,c("line","line.width")] <- c(2,1.5)
   colour.scenarios$hex[5] <- colours[3]            
   colour.scenarios$hex[6] <- colours[1]
   colour.scenarios$hex[7] <- colours[1] 
-  colour.scenarios$hex[8] <- colours[1]
-  colour.scenarios$hex[9] <- colours[1]
+  colour.scenarios[8,c("hex")] <- c("grey60"); colour.scenarios[8,c("line","line.width")] <- c(3,1.5)
+  colour.scenarios[9,c("hex")] <- c("grey60"); colour.scenarios[9,c("line","line.width")] <- c(2,1.5)
   colour.scenarios$hex[10] <- colours[2]
-  colour.scenarios$hex[11] <- colours[2]
-  colour.scenarios$line <- c(1,1,1,1,2,2,1,3,2,1,1)
+  colour.scenarios[11,c("hex")] <- c("grey60"); colour.scenarios[11,c("line","line.width")] <- c(1,1.5)
   
-curve.plot <- function(i){ 
-  tiff(filename=paste0(scenarios[i],"_replacement.cost.curves.tif"),width=7.5,height=7.5,units="cm",pointsize=10,res=200,compression="lzw")
-   par(mar=c(2.5,2.5,0.5,0.5), oma=c(0,0,0,0))
-  plot(ave_prop_rem ~ Prop_landscape_lost, data=curves[[1]], type="l", xlab="", ylab="", lwd=1,col="grey", bty="l", las=1)
-  lines(min_prop_rem ~ Prop_landscape_lost, data=curves[[1]], lty=2,lwd=1,col="grey")
-  lines(ave_prop_rem ~ Prop_landscape_lost, data=curves[[i]], lty=1,lwd=1)
-  lines(min_prop_rem ~ Prop_landscape_lost, data=curves[[i]], lty=2,lwd=1)
-  dev.off()
-  }
   
-lapply(1:11,curve.plot)
+# curve.plot <- function(i){ 
+#   tiff(filename=paste0(scenarios[i],"_replacement.cost.curves.tif"),width=7.5,height=7.5,units="cm",pointsize=10,res=200,compression="lzw")
+#    par(mar=c(2.5,2.5,0.5,0.5), oma=c(0,0,0,0))
+#   plot(ave_prop_rem ~ Prop_landscape_lost, data=curves[[1]], type="l", xlab="", ylab="", lwd=1,col="grey", bty="l", las=1)
+#   lines(min_prop_rem ~ Prop_landscape_lost, data=curves[[1]], lty=2,lwd=1,col="grey")
+#   lines(ave_prop_rem ~ Prop_landscape_lost, data=curves[[i]], lty=1,lwd=1)
+#   lines(min_prop_rem ~ Prop_landscape_lost, data=curves[[i]], lty=2,lwd=1)
+#   dev.off()
+#   }
+#   
+# lapply(1:11,curve.plot)
+# 
+# inverse.landscape <- 1-curves[[3]]$Prop_landscape_lost
 
-inverse.landscape <- 1-curves[[3]]$Prop_landscape_lost
+plot.curves <- function(plot.scenarios,y.variable,labels="", y.label="", x.label="", legend=F, plot.label="", line.limit){
+  input <- curves[[1]]
+  plot(input[,y.variable] ~ Prop_landscape_lost, data=input, type="n", xlab=x.label, ylab=y.label, bty="l", las=1,xaxs = "i", yaxs="i",xaxt = "n",xlim=c(0,1))
+lines(c(0.7,0.7),c(0,line.limit),col="grey85")
+axis(1,at=c(0,0.2,0.4,0.6,0.8,1), label=c("1.0","0.8","0.6","0.4","0.2","0.0")) 
+
+    for(i in plot.scenarios){
+    input <- curves[[i]]
+              lines(input[,y.variable] ~ Prop_landscape_lost, data=input, lty=colour.scenarios$line[i], lwd=colour.scenarios$line.width[i], col=colour.scenarios$hex[i])
+              }
+  input <- curves[[1]]  
+  lines(input[,y.variable] ~ Prop_landscape_lost, data=input, lty=colour.scenarios$line[1], lwd=colour.scenarios$line.width[1], col=colour.scenarios$hex[1])
+    
+ if(legend==TRUE) legend("bottomleft", legend=labels, col=colour.scenarios$hex[plot.scenarios], lty=colour.scenarios$line[plot.scenarios], lwd=colour.scenarios$line.width[plot.scenarios],bty="n",cex=0.75)
+  mtext(plot.label, side=3, line=0.5,cex=1,adj=0)
+}
               
 tiff(filename="replacement.cost.curves_all.tif",width=15,height=20,units="cm",pointsize=12,res=200,compression="lzw")
- par(mfrow=c(2,1), mar=c(4.1,4,1.5,1)) 
-              
-  plot(ave_prop_rem ~ Prop_landscape_lost, data=curves[[1]], type="n", xlab="", ylab="Proportion of distributions protected", lwd=2, col=1, bty="l", las=1,xaxs = "i", yaxs="i",xaxt = "n",xlim=c(0,1))
-axis(1,at=c(0,0.2,0.4,0.6,0.8,1), label=c("1.0","0.8","0.6","0.4","0.2","0.0"))   
-    for(i in c(2,4,8,9,11)){
-    
-              lines(ave_prop_rem ~ Prop_landscape_lost, data=curves[[i]], lty=colour.scenarios$line[i], lwd=1, col=colour.scenarios$hex[i])
-              }
-    lines(ave_prop_rem ~ Prop_landscape_lost, data=curves[[1]], lty=1, lwd=1, col=1)
-# lines((1-ave_prop_rem) ~ inverse.landscape, data=curves[[3]], lty=colour.scenarios$line[3], lwd=1, col=colour.scenarios$hex[3])
-    
-  legend("bottomleft", legend=c("A. Conservation","B. Social","C. Development","D. Conservation & social","E. Conservation, social & development costs","F. Conservation, social & development mask"), col=c(1,colour.scenarios$hex[c(2,3,4,6:7)]), lty=c(1,1,1,1,3,2), bty="n",cex=0.75)
-  mtext("a)", side=3, line=0.5,cex=1,adj=0)
-    
 
-   plot(min_prop_rem ~ Prop_landscape_lost, data=curves[[1]], type="n", xlab="Proportion of landscape protected", ylab="Proportion of distributions protected", lwd=2, col=1, bty="l", las=1,xaxs = "i", yaxs="i",xaxt = "n",xlim=c(0,1))
-axis(1,at=c(0,0.2,0.4,0.6,0.8,1), label=c("1.0","0.8","0.6","0.4","0.2","0.0"))   
-for(i in c(2,4,8,9,11)){
-    
-              lines(min_prop_rem ~ Prop_landscape_lost, data=curves[[i]], lty=colour.scenarios$line[i], lwd=1, col=colour.scenarios$hex[i])
-              }
-    lines(min_prop_rem ~ Prop_landscape_lost, data=curves[[1]], lty=1, lwd=1, col=1)
-#   lines((1-min_prop_rem) ~ inverse.landscape, data=curves[[3]], lty=colour.scenarios$line[3], lwd=1, col=colour.scenarios$hex[3])
-    mtext("b)", side=3, line=0.5,cex=1,adj=0)
+par(mfrow=c(2,1), mar=c(4.1,4,1.5,1)) 
+ plot.curves(plot.scenarios=c(1,2,11,4,8,9),y.variable="ave_prop_rem",labels=c("A. Conservation","B. Social","C. Development","D. Conservation & social","E. Conservation, social & development costs","F. Conservation, social & development mask"),y.label="Mean proportion of distributions protected",x.label="",legend=TRUE, plot.label="a)", line.limit=0.396)
+
+plot.curves(plot.scenarios=c(1,2,11,4,8,9),y.variable="min_prop_rem",y.label="Minimum proportion of distributions protected",x.label="Proportion of landscape protected",legend=FALSE, plot.label="b)", line.limit=0.322)
+  
     
   
 dev.off()
