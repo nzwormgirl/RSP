@@ -27,7 +27,7 @@ rbind.match.columns <- function (input1,input2) {
         column.names <- names(input1[,TF.names])
       }
     
-    output <- rbind(input1[,column.names], input2[,column.names])
+    return(rbind(input1[,column.names], input2[,column.names]))
   }
 
 # a function that extracts records for individual species based on the given region
