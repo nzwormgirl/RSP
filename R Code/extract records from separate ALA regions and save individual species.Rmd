@@ -53,16 +53,20 @@ combine.records <- function (NC.records, SB.records) {
   }
 
 #open mnes species list
-mnes.species <- read.csv("EPBC list species NSW.csv", skip=1)
+# mnes.species <- read.csv("EPBC list species NSW.csv", skip=1)
+
+mnes.species <- read.csv("C:/Users/awhitehead/Documents/GIS_data/Australia-wide/species data/all EPBC listed species 27May2013.csv")
 
 # open the list of threatened and interesting species for potential analysis
 protected.species <- read.csv("IBRA threatened species list.csv")
    protected.species$mnes <- "FALSE"
-  protected.species$mnes[which(mnes.species$Scientific.Name %in% protected.species$Scientific.Name ==TRUE)] <- "TRUE"
+  protected.species$mnes[which(mnes.species$scientific.name %in% protected.species$Scientific.Name ==TRUE)] <- "TRUE"
 
 # generate threatened species list
-threatened.species <- rbind(protected.species[grep("E", protected.species$NSW.status),], protected.species[grep("V", protected.species$NSW.status),], protected.species[grep("TRUE", protected.species$mnes),])
-  threatened.species <- threatened.species[!duplicated(threatened.species),]
+# threatened.species <- rbind(protected.species[grep("E", protected.species$NSW.status),], protected.species[grep("V", protected.species$NSW.status),], protected.species[grep("TRUE", protected.species$mnes),])
+#   threatened.species <- threatened.species[!duplicated(threatened.species),]
+
+threatened.species <- protected.species
  
 # the taxanomic blocks that the data were downloaded in
 taxa <- c("mammals", "amphibians", "plants", "reptiles","birds","arthropods")

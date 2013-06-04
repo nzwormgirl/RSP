@@ -151,14 +151,14 @@ for(i in seq(overlays$thresholds)){
   overlays$soc.dev[i] <- nrow(priority.rankings[(priority.rankings$optimal_development > overlays$thresholds[i] & priority.rankings$optimal_social > overlays$thresholds[i]),]) / nrow(priority.rankings[(priority.rankings$optimal_development > overlays$thresholds[i] | priority.rankings$optimal_social > overlays$thresholds[i]),])
 }
 
-tiff("overlay_thresholds.tif",res=200,width=15,height=12,units="cm",pointsize=12)
-  par(mfrow=c(1,1))
+tiff("figures for ms/overlay_thresholds.tif",res=200,width=15,height=10,units="cm",pointsize=12, compression="lzw")
+  par(mfrow=c(1,1), mar=c(4,4,1,1.25))
   plot(con.soc~thresholds, data=overlays, type="l", xlab="Top fraction of the landscape", ylab="Proportion of overlap", bty="l", col=1, las=1, xaxs="i",yaxs="i",ylim=c(0,0.5), xaxt="n")
   axis(1,at=seq(0.5:1.0,by=0.1), label=c(c("0.5","0.4","0.3","0.2","0.1","0.0")))
     lines(con.dev~thresholds, data=overlays, lty=2, col=1)
     lines(soc.dev~thresholds, data=overlays, lty=3, col=1)
-  abline(v=0.7, col="grey")
-  legend("topright",c("A. Conservation, B.Social values","A. Conservation, C. Development preferences","B. Social values, C. Development preferences"), lty=c(1,2,3), bty="n", col=1, cex=0.7)
+  lines(c(0.7,0.7),c(0,0.31), col="grey")
+  legend("topright",c("A. Biological values, B.Social values","A. Biological values, C. Development preferences","B. Social values, C. Development preferences"), lty=c(1,2,3), bty="n", col=1, cex=0.7)
 dev.off()
 
 writeRaster(conservation.high_development.high, "conservation.high_development.high.asc", overwrite=T)
@@ -191,9 +191,9 @@ colour.scenarios <- d(scenarios, hex=NA, line=1, line.width=1)
   colour.scenarios[2,c("hex")] <- c("grey30"); colour.scenarios[2,c("line","line.width")] <- c(1,1.5)
   colour.scenarios[3,c("hex")] <- c("grey40"); colour.scenarios[3,c("line","line.width")] <- c(1,1.5)
   colour.scenarios[4,c("hex")] <- c("grey25"); colour.scenarios[4,c("line","line.width")] <- c(2,1.5)
-  colour.scenarios$hex[5] <- colours[3]            
-  colour.scenarios$hex[6] <- colours[1]
-  colour.scenarios$hex[7] <- colours[1] 
+  colour.scenarios$hex[5] <- c("grey25"); colour.scenarios[5,c("line","line.width")] <- c(2,1.5)            
+  colour.scenarios$hex[6] <- c("grey60"); colour.scenarios[6,c("line","line.width")] <- c(3,1.5)
+  colour.scenarios$hex[7] <- c("grey60"); colour.scenarios[7,c("line","line.width")] <- c(2,1.5) 
   colour.scenarios[8,c("hex")] <- c("grey60"); colour.scenarios[8,c("line","line.width")] <- c(3,1.5)
   colour.scenarios[9,c("hex")] <- c("grey60"); colour.scenarios[9,c("line","line.width")] <- c(2,1.5)
   colour.scenarios$hex[10] <- colours[2]
@@ -231,16 +231,30 @@ axis(1,at=c(0,0.2,0.4,0.6,0.8,1), label=c("1.0","0.8","0.6","0.4","0.2","0.0"))
   mtext(plot.label, side=3, line=0.5,cex=1,adj=0)
 }
               
-tiff(filename="replacement.cost.curves_all.tif",width=15,height=20,units="cm",pointsize=12,res=200,compression="lzw")
+tiff(filename="replacement.cost.curves.tif",width=15,height=20,units="cm",pointsize=12,res=200,compression="lzw")
 
 par(mfrow=c(2,1), mar=c(4.1,4,1.5,1)) 
- plot.curves(plot.scenarios=c(1,2,11,4,8,9),y.variable="ave_prop_rem",labels=c("A. Conservation","B. Social","C. Development","D. Conservation & social","E. Conservation, social & development costs","F. Conservation, social & development mask"),y.label="Mean proportion of distributions protected",x.label="",legend=TRUE, plot.label="a)", line.limit=0.396)
+ plot.curves(plot.scenarios=c(1,2,11,4,8,9),y.variable="ave_prop_rem",labels=c("A. Biological values","B. Social values","C. Development preferences","D. Biological & social","E. Biological, social & development costs","F. Biological, social & development mask"),y.label="Mean proportion of distributions protected",x.label="",legend=TRUE, plot.label="a)", line.limit=0.396)
 
 plot.curves(plot.scenarios=c(1,2,11,4,8,9),y.variable="min_prop_rem",y.label="Minimum proportion of distributions protected",x.label="Proportion of landscape protected",legend=FALSE, plot.label="b)", line.limit=0.322)
   
-    
-  
 dev.off()
+
+
+tiff(filename="replacement.cost.curves_supplementary.tif",width=15,height=20,units="cm",pointsize=12,res=200,compression="lzw")
+
+par(mfrow=c(2,1), mar=c(4.1,4,1.5,1)) 
+ plot.curves(plot.scenarios=c(1,5,6,7),y.variable="ave_prop_rem",labels=c("A. Biological values","G. Biological & inverse social costs","H. Biological & development costs","I. Biological & development mask"),y.label="Mean proportion of distributions protected",x.label="",legend=TRUE, plot.label="a)", line.limit=0.396)
+
+plot.curves(plot.scenarios=c(1,5,6,7),y.variable="min_prop_rem",y.label="Minimum proportion of distributions protected",x.label="Proportion of landscape protected",legend=FALSE, plot.label="b)", line.limit=0.322)
+    
+dev.off()
+
+par(mfrow=c(2,1), mar=c(4.1,4,1.5,1)) 
+ plot.curves(plot.scenarios=c(1:11),y.variable="ave_prop_rem",labels=scenarios,y.label="Mean proportion of distributions protected",x.label="",legend=TRUE, plot.label="a)", line.limit=0.396)
+
+plot.curves(plot.scenarios=c(1:11),y.variable="min_prop_rem",y.label="Minimum proportion of distributions protected",x.label="Proportion of landscape protected",legend=FALSE, plot.label="b)", line.limit=0.322)
+
 
 ```
 
