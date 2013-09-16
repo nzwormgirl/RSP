@@ -60,7 +60,8 @@ mnes.species <- read.csv("C:/Users/awhitehead/Documents/GIS_data/Australia-wide/
 # open the list of threatened and interesting species for potential analysis
 protected.species <- read.csv("IBRA threatened species list.csv")
    protected.species$mnes <- "FALSE"
-  protected.species$mnes[which(mnes.species$scientific.name %in% protected.species$Scientific.Name ==TRUE)] <- "TRUE"
+  protected.species$mnes[which(protected.species$Scientific.Name %in% mnes.species$scientific.name ==TRUE)] <- "TRUE"
+
 
 # generate threatened species list
 # threatened.species <- rbind(protected.species[grep("E", protected.species$NSW.status),], protected.species[grep("V", protected.species$NSW.status),], protected.species[grep("TRUE", protected.species$mnes),])
@@ -146,4 +147,47 @@ write.csv(protected.species, "IBRA threatened species list.csv", row.names=FALSE
 
 ```
 
+
+```{r analysis_OEH}
+setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data")
+
+# loop through each taxonomic group and extract records based on the threatened species list
+
+  cat("\n", "Extracting records for OEH","\n")  
+  species.list <- threatened.species$Scientific.Name 
+   OEH.input <- read.csv(paste0("OEH/OEH_UH_species_data.csv"))
+    # remove records with missing spatial data  
+    OEH.input <- OEH.input[!is.na(OEH.input$easting),]
+
+# convert OEH to WGS84 to match rest of data
+  coordinates(OEH.input) <- c("easting", "northing")
+    
+    # set current projection
+    proj4string(OEH.input) <- "+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" 
+  
+    # transform to new projection
+    project_OEH.input <- spTransform(OEH.input, CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"))
+  
+    # convert back to a dataframe
+    OEH.input <- as.data.frame(project_OEH.input)
+      names(OEH.input)[21:22] <- c("longitude","latitude")
+
+   
+  for(i in seq(species.list)){
+      OEH.records <- extract("OEH", "OEH",OEH.input,species.list[i])
+              
+     if(is.null(OEH.records)==FALSE) {
+        protected.species$Downloaded.OEH[protected.species$Scientific.Name==species.list[i]] <- "yes"
+        protected.species$OEH.records[protected.species$Scientific.Name==species.list[i]] <- nrow(OEH.records)
+        write.csv(OEH.records, glue("OEH data/",species.list[i],".csv"),row.names=FALSE)
+        cat("Exported",nrow(OEH.records), "records for", as.character(species.list[i]),"\n","\n")
+        }
+      suppressWarnings(rm(OEH.records,all.records))
+      gc()
+    }
+
+# update threatened species download information
+write.csv(protected.species, "IBRA threatened species list.csv", row.names=FALSE)
+
+```
 *This file was last updated on 12 April 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*
