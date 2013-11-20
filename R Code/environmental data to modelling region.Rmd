@@ -1,0 +1,78 @@
+Clip environmental data to PP IBRA regions
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r setup}
+rm(list=ls())
+start.time <- proc.time()
+setwd("~/GIS_data/")
+  
+output.directory <- "C:/Users/awhitehead/Documents/GIS_data/Hunter/Maxent_files/ghm_environmental_data/"
+
+packages(raster)
+packages(rgdal)
+packages(maptools)
+
+hccrems <- raster("Hunter/Plans/HCCREMS_AreaOfInterest/hccrems_mask.asc")
+  hccrems[!is.na(hccrems)] <- 1
+
+hccrems.gda94 <- readShapePoly("Hunter/Plans/HCCREMS_AreaOfInterest/HCCREMS_AoI.shp")
+  
+
+```
+
+
+
+You can also embed plots, for example:
+
+```{r load data}
+# this seems to be broken at the moment!
+#climate
+climate <- d(label=c("mean_temp","hot_temp","cold_temp","mean_rain","seasonal_rain","mean_solar"), file=c("aus01","aus10","aus11","aus12","aus15","aus20"))
+
+for(i in 1:nrow(climate)){
+  r<- raster(paste0("Australia-wide/anuclim/",climate$file[i]))
+  assign(names(r),r)
+  }
+  climate.stack <- stack(aus01,aus10,aus11,aus12,aus15,aus20)
+  projection(climate.stack) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+  climate.stack <- mask(crop(climate.stack,hccrems.gda94),hccrems.gda94)
+  climate.stack <- projectRaster(climate.stack,hccrems)
+  writeRaster(climate.stack,paste0("Hunter/Maxent_files/ghm_environmental_data/climate/",climate$label,".tif"),overwrite=T,bylayer=T, format="GTiff")
+
+# # topography
+# topography <- c("altitude","terr_500", "terr_1000","terr_250","rugg250","rugg500","rugg1000","cti")
+# 
+# for(i in 1:length(topography)){
+#   r<- raster(paste0("Perth-Peel/environmental data/100m/topography/",topography[i]))
+#   assign(names(r),r)
+#   }
+#   
+#   slope <- terrain(altitude,opt=c('slope', 'aspect'), unit='degrees')
+#   eastness <- sin((slope[[2]]*pi)/180)
+#     names(eastness) <- "eastness"
+#   northness <- cos((slope[[2]]*pi)/180)
+#     names(northness) <- "northness"
+# 
+# topo.stack <- stack(altitude,slope[[1]],eastness,northness,terr_500,terr_1000,terr_250,rugg250,rugg500,rugg1000,cti)
+# topo.stack <- crop(topo.stack,ibra)
+# plot(topo.stack)
+# 
+# writeRaster(topo.stack,"Perth-Peel/environmental data/100m/ibra/topography/",suffix=names(topo.stack),overwrite=T,bylayer=T, format="GTiff")
+
+# # soils
+# soils <- d(label=c("wii"), file=c("wii_oz2_w1k3"))
+# 
+# for(i in 1:nrow(soils)){
+#   r<- raster(paste0("Australia-wide/wii_1km/wii_1km/",soils$file[i]))
+#   assign(names(r),r)
+#   }
+#   wii_oz2_w1k3 <- crop(wii_oz2_w1k3,ibra_gda94)
+#   wii_oz2_w1k3 <- projectRaster(wii_oz2_w1k3,ibra)
+#   writeRaster(wii_oz2_w1k3,paste0("Perth-Peel/environmental data/100m/ibra/soils/",soils$label,".tif"),overwrite=T,format="GTiff")
+
+
+```

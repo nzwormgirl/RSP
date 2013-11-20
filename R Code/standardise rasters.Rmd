@@ -1,0 +1,118 @@
+Title
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r setup_functions}
+#load packages and set working directory
+rm(list=ls())
+start.time <- proc.time()
+
+computer <- "super"
+
+# if(computer == "super") source("~/R code/Rprofile.r")
+# if(computer == "UM") working.directory <- "C:/Users/awhitehead/Documents/GIS data/Hunter/Maxent files/ascii files/ghm environmental data"
+
+setwd("C:/Users/awhitehead/Documents/RSP/data/ghm environmental data")
+
+library(raster)
+library(rgdal)
+
+```
+
+The Keith vegetation formation classes (Formatio_1) have been recoded from the ArcGIS keith.raster using the following numerical code:
+New code | FORMATIO_1 |  Raster code
+---------|------------|-------------
+1 |	Grasslands |	12
+2	| Rainforests	| 2
+3	| Wet sclerophyll forests (Shrubby subformation) |	3
+3	| Wet sclerophyll forests (Grassy subformation)	|  5
+4	| Dry sclerophyll forests (Shrubby subformation)	|  4
+4	| Dry sclerophyll forests (Shrub/grass subformation)	|  10
+5	| Forested wetlands	|  7
+5	| Freshwater wetlands	|  8
+5	| Saline  wetlands	|  11
+6	| Heathlands	|  6
+7	| Grassy woodlands	|  9
+NA|	Cleared	|  1
+
+
+```{r open_rasters}
+
+# open environmental rasters
+  # region mask
+  region.mask <- raster("hccrems_mask.asc")
+
+  # vegetation
+  (veg.files <- dir("vegetation", pattern="*.asc", recursive=T, full.names=T)) 
+    # remove arcgis generated files from list
+    if(length(grep("aux.xml",veg.files))>0) veg.files <- veg.files[-grep("aux.xml",veg.files)]
+    if(length(grep("ovr",veg.files))>0) veg.files <- veg.files[-grep("ovr",veg.files)]
+  veg.rasters <- stack(veg.files)
+ 
+#   veg.brick <- brick(veg.rasters)
+#   veg.resample <- resample(veg.brick,region.mask,method="bilinear")
+
+
+
+  # topography
+  (topo.files <- dir("topography", pattern="*.asc", recursive=T, full.names=T)) 
+    # remove arcgis generated files from list
+    if(length(grep("aux.xml",topo.files))>0) topo.files <- topo.files[-grep("aux.xml",topo.files)]
+    if(length(grep("ovr",topo.files))>0) topo.files <- topo.files[-grep("ovr",topo.files)]  
+  topo.rasters <- stack(lapply(topo.files,raster))
+    
+
+  # soils
+  (soil.files <- dir("soils", pattern="*.asc", recursive=T, full.names=T)) 
+    # remove arcgis generated files from list
+    if(length(grep("aux.xml",soil.files))>0) soil.files <- soil.files[-grep("aux.xml",soil.files)]
+    if(length(grep("ovr",soil.files))>0) soil.files <- soil.files[-grep("ovr",soil.files)]  
+  soil.rasters <- stack(lapply(soil.files,raster))
+
+  # climate
+  (climate.files <- dir("climate", pattern="*.asc", recursive=T, full.names=T)) 
+    # remove arcgis generated files from list
+    if(length(grep("aux.xml",climate.files))>0) climate.files <- climate.files[-grep("aux.xml",climate.files)]
+    if(length(grep("ovr",climate.files))>0) climate.files <- climate.files[-grep("ovr",climate.files)]  
+  climate.rasters <- stack(lapply(climate.files,raster))
+
+gc()
+  
+```
+
+
+```{r standardise_rasters}
+# stack all environmental rasters together
+  envi.rasters<-stack(region.mask, topo.rasters, soil.rasters, climate.rasters,veg.resample)
+    envi.rasters.names <- names(envi.rasters)
+
+# standardise rasters  
+  # calculate mean raster from stack to identify all NA values
+  envi.mask <- calc(envi.rasters,mean)
+    envi.mask[!is.na(envi.mask)] <-1
+    gc()
+
+  # multiply all layers in stack by presence mask  
+  envi.rasters.mask <- envi.rasters*envi.mask
+    gc()
+  # restack as output is a raster brick
+  envi.rasters.mask <- stack(envi.rasters.mask)
+    names(envi.rasters.mask) <- envi.rasters.names
+    gc()
+  # unstack to generate raster list for export
+  envi.rasters.mask.list<-unstack(envi.rasters.mask)
+    gc()
+
+  # write each raster to disk
+  
+  for(i in 1:length(envi.rasters.mask.list)){
+    cat("\n", "Writing",as.character(envi.rasters.names[i]), "to ", getwd())
+    writeRaster(envi.rasters.mask.list[[i]], paste0("standardised rasters/",envi.rasters.names[i],".asc"), overwrite=TRUE)
+        gc()
+  }
+
+cat("\n","This analysis took",round((proc.time()-start.time)[3]/60,0), "minutes to run with",length(names(envi.rasters)), "rasters.")
+```

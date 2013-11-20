@@ -1,0 +1,85 @@
+Title
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r load_data}
+rm(list=ls())
+library(raster)
+library(maptools)
+
+# maxent.dir <- c("//654cw-20990/Users/awhitehead/Documents/RSP/data/Maxent_files")
+zonation.dir <- c("~/GIS_data/Hunter/zonation/greater hunter/")
+
+maxent.dir <- "~/GIS_data/Hunter/Maxent_files"
+
+threatened.sp <- read.csv("~/GIS_data/Hunter/species point data/IBRA threatened species list.csv")
+
+asc.files <- dir(zonation.dir, pattern=".tif$")
+
+region.mask <- raster(paste0(zonation.dir,asc.files[1]))
+  proj4string(region.mask) <- "+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+
+species.data <- read.csv(paste0(maxent.dir,"/species_data/maxent.data_ALA.NSW.csv"))
+  coordinates(species.data) <- c("easting","northing")
+  proj4string(species.data) <- "+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+
+  species.data$veg <- extract(region.mask,species.data)
+  species.data <- as.data.frame(species.data)
+  species.data <- species.data[!is.na(species.data$veg),]
+  
+
+
+lga <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/HUNTER_REG_cadastral_2012-08-01/shape_processed_LL-GDA94/administrative/localgovernmentarea_GH.shp")
+  proj4string(lga) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+  lga <- spTransform(lga, CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+
+newcastle <- d(easting=386288.67,northing=6355926.73)
+  coordinates(newcastle) <- c("easting","northing")
+
+taxa <- c("mammals", "amphibians", "plants", "birds", "reptiles")
+
+modelled.species <- threatened.sp[!is.na(threatened.sp$sdm),]
+
+```
+
+You can also embed plots, for example:
+
+```{r create pdf files}
+setwd(zonation.dir)
+
+for(k in seq(taxa)){
+  
+  sp.list <- modelled.species$Scientific.Name[modelled.species$Taxa==taxa[k]]
+
+  cat("\n","\n","Generating pdf for", taxa[k])
+  pdf(paste0(taxa[k],"_Modelled species.pdf"),paper="a4r")
+   
+    for(i in seq(sp.list)){
+      sp <- gsub(" ","_",sp.list[i])
+      r <- raster(paste0(sp,".tif"))
+      species <- names(r)
+        species <- gsub("_"," ",species)
+      sp.points <- species.data[species.data$species==species,c("easting","northing")]
+      
+#       brk <- seq(0,1000,by=100)
+     
+#      plot(r, breaks=brk, col=rev(terrain.colors(10)), legend=F, main=species, ylab="Northing",xlab="Easting")
+#       plot(r/1000, breaks=brk/1000, col=rev(terrain.colors(10)), legend.only=T, box=F)
+      
+       plot(r/1000, legend=F, main=species, ylab="Northing",xlab="Easting", zlim=c(0,1))
+      plot(r/1000, legend.only=T, box=F, zlim=c(0,1))
+      plot(lga,add=T, border="grey")
+    #   points(newcastle, pch=16,cex)
+     
+      points(sp.points,pch=".",col="grey35")
+      cat("\n","Plotting",species,"to pdf")
+    }
+  
+  dev.off()
+   }
+
+```
+

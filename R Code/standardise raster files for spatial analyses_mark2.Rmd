@@ -10,10 +10,7 @@ When you click the **Knit HTML** button a web page will be generated that includ
 rm(list=ls())
 start.time <- proc.time()
 
-computer <- "UM"
-
-if(computer == "super") source("~/R code/Rprofile.r")
-if(computer == "UM") working.directory <- "C:/Users/awhitehead/Documents/GIS_data/Hunter/Maxent_files/ghm_environmental_data"
+working.directory <- "~/GIS_data/Hunter/Maxent_files/ghm_environmental_data"
 
 # setwd(working.directory)
 
@@ -22,45 +19,36 @@ packages(rgdal)
 
 ```
 
-The Keith vegetation formation classes (Formatio_1) have been recoded from the ArcGIS keith.raster using the following numerical code:
-New code | FORMATIO_1 |	Raster code
----------|------------|-------------
-1 |	Grasslands |	12
-2	| Rainforests	| 2
-3	| Wet sclerophyll forests (Shrubby subformation) |	3
-3	| Wet sclerophyll forests (Grassy subformation)	|  5
-4	| Dry sclerophyll forests (Shrubby subformation)	|  4
-4	| Dry sclerophyll forests (Shrub/grass subformation)	|  10
-5	| Forested wetlands	|  7
-5	| Freshwater wetlands	|  8
-5	| Saline  wetlands	|  11
-6	| Heathlands	|  6
-7	| Grassy woodlands	|  9
-NA|	Cleared	|  1
 
 
 ```{r open_rasters}
-
+setwd(working.directory)
 # open environmental rasters
   # region mask
   region.mask <- raster("hccrems_mask.asc")
 
   # vegetation
   (veg.files <- dir("vegetation", pattern="*.asc$", recursive=T, full.names=T))     
-  veg.rasters <- stack(veg.files)  
+  vegetation <- raster("vegetation/final_vegetation.tif")
+    vegetation <- resample(vegetation,region.mask)
+  veg.rasters <- stack(veg.files,vegetation)
 
   # topography
   (topo.files <- dir("topography", pattern="*.asc$", recursive=T, full.names=T)) 
   topo.rasters <- stack(topo.files)
-    
 
   # soils
   (soil.files <- dir("soils", pattern="*.asc$", recursive=T, full.names=T)) 
   soil.rasters <- stack(soil.files)
 
   # climate
-  (climate.files <- dir("climate", pattern="*.asc$", recursive=T, full.names=T)) 
+  (climate.files <- dir("climate", pattern="*.tif$", recursive=T, full.names=T)) 
   climate.rasters <- stack(climate.files)
+
+  # sampling bias layers
+  (sampling.files <- dir("sampling bias", pattern="*.tif$", recursive=T, full.names=T)) 
+  sampling.rasters <- stack(sampling.files)
+    sampling.rasters <- resample(sampling.rasters,region.mask)
 
 gc()
   
@@ -69,7 +57,7 @@ gc()
 
 ```{r standardise_rasters}
 # stack all environmental rasters together
-  envi.rasters<-stack(region.mask,veg.rasters, topo.rasters, soil.rasters, climate.rasters)
+  envi.rasters<-stack(region.mask,veg.rasters, topo.rasters, soil.rasters, climate.rasters, sampling.rasters)
     envi.rasters.names <- names(envi.rasters)
 
 # standardise rasters  
@@ -90,12 +78,37 @@ gc()
 
   # write each raster to disk
   
-  for(i in 1:length(envi.rasters.mask.list)){
+  for(i in 1:length(envi.rasters.names)){
     cat("\n", "Writing ",as.character(envi.rasters.names[i]), "to ", getwd())
-    writeRaster(envi.rasters.mask.list[[i]], paste0("standardised_rasters/",envi.rasters.names[i],".asc"), overwrite=T)
+    writeRaster(envi.rasters.mask[[i]], paste0("standardised_rasters/",envi.rasters.names[i],".asc"), overwrite=T)
         gc()
   }
 
 cat("\n","This analysis took",round((proc.time()-start.time)[3]/60,0), "minutes to run with",length(names(envi.rasters)), "rasters.")
 ```
 
+
+```{r correlation btwn variables}
+setwd("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/standardised_rasters/")
+
+(standardised.files <- dir("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/standardised_rasters/", pattern="*.asc$", recursive=T))
+  standardised.files <- standardised.files[(grepl("sb_",standardised.files)==FALSE & grepl("hccrems",standardised.files)==FALSE)]
+
+standardised.rasters <- lapply(standardised.files,raster) 
+
+output <- matrix(data=NA,nrow=length(standardised.files),ncol=length(standardised.files))
+rownames(output) <- standardised.files
+colnames(output) <- standardised.files
+
+for(i in seq(standardised.files)){
+  raster.i <- getValues(standardised.rasters[[i]])
+  cat(standardised.files[i], "\n")
+  for(j in seq(standardised.files)){
+    output[i,j] <- cor(raster.i,getValues(standardised.rasters[[j]]), use="complete.obs")
+    cat(" ",standardised.files[j],round(output[i,j],2),"\n")
+  }
+}
+
+write.csv(output,"~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/standardised_rasters/correlation_matrix.csv")
+
+```

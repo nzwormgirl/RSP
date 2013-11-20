@@ -13,7 +13,7 @@ The original data will need to be exported from the geodatabase as shapefiles an
 The following functions set up the circular filter window `make_circ_filter`, turn a raster in to presence-absence based on a threshold `presence.absence` and calculate the percentage cover within a given window `percent.cover`.  `make_circ_filter` uses code from [Michael Scroggie](http://scrogster.wordpress.com/2012/10/05/applying-a-circular-moving-window-filter-to-raster-data-in-r/) and requires a cell resolution and radius that is a multiple of the resolution. 
 
 
-```{r chunkFunctions, warning=FALSE,message=FALSE}
+```{r load_functions, warning=FALSE,message=FALSE}
 rm(list=ls())
 
 library(raster)
@@ -55,59 +55,50 @@ presence.absence <- function(x) { x[x<threshold] <- 0
 ```{r Analysis_function, message=FALSE}
 
 # open the selected sample file
-  generate.pc.ascii <- function (file.name, mask,sample.raster) {
-#     sample.raster <- raster(filename)
+  generate.pc.ascii <- function (filename, mask) {
+    sample.raster <- raster(filename)
     
-    cat("\n","Loaded",as.character(file.name))
+    cat("\n","Loaded",filename)
     
     sample.raster <- resample(sample.raster,mask, method="bilinear")
 
   # calculate the percentage cover within the circular filter
-    cat("\n","Calculating % cover of",as.character(file.name)," within",radius,"m radius")
+    cat("\n","Calculating % cover of",filename," within",radius,"m radius")
     r_filt <- focal(sample.raster, w=cf, fun=percent.cover)*mask
   
     par(mfrow=c(1,2))
-    plot(sample.raster, main=file.name, axes=F) #original data
-    plot(r_filt, main=paste0(radius,"m ",file.name), axes=F) #filtered data
-    
-    file.name <- gsub(" ","_",file.name)
+    plot(sample.raster, main=filename, axes=F) #original data
+    plot(r_filt, main=paste0(radius,"m ",filename), axes=F) #filtered data
   
-  writeRaster(r_filt, paste0("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/vegetation/veg.",radius,file.name,".asc"), overwrite=TRUE)
-    cat("\n","Saved",paste0("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/vegetation/veg.",radius,file.name),"\n","\n")
+  writeRaster(r_filt, paste0("ascii files/", "veg.",radius,filename), overwrite=TRUE)
+    cat("\n","Saved",paste0(filename,radius),"in",paste0(getwd(),"/ascii files"),"\n","\n")
   }
 ```
 
-Create percentage cover rasters for each of the Keith formations in the GHM at the Greater Hunter scale
 ```{r run_ghm_analysis}
-  setwd("~/GHM raster data")
+  setwd("C:/Users/awhitehead/Documents/GHM raster data")
 
-final.veg <- raster("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/vegetation/final_vegetation.tif")
-
-ghm.veg.reclass <- read.csv("~/GIS_data/Hunter/vegetation/ghm_veg_reclassify.csv")
-
-  veg.types <- d(class=unique(ghm.veg.reclass$Mosiac),num=unique(ghm.veg.reclass$Mosiac_num))
-  veg.types <- veg.types[!is.na(veg.types$num),]
-
-#   veg_types <- c("dry_sclero.asc","rainforests.asc","wet_sclero.asc","woodlands.asc","woody.asc")
+  veg_types <- c("woody.asc","dry_sclero.asc","rainforests.asc","wet_sclero.asc","woodlands.asc","cleared.asc")
 
 # create a sampling mask
-  hccrems_mask <- raster("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/hccrems_mask.asc")
-    hccrems_mask[!is.na(hccrems_mask)] <- 1
-        
+  ghm_mask <- raster("ghm_mask.asc")
+  ghm_mask <- raster(ghm_mask)
+  ghm_mask[!is.na(ghm_mask)] <- 1
+
 # get the resolution of the mask raster
-  resolution <- xres(hccrems_mask)
+  resolution <- xres(ghm_mask)
   
-# ## Generate ascii files with percentage cover within 500 m radius
-#   radius <- resolution*5
-# 
-# # set the circular filter
-#   cf<-make_circ_filter(radius, resolution)
-# 
-# for(i in seq(veg_types)) {
-#     
-#   generate.pc.ascii(veg_types[i],hccrems_mask)
-#   
-#  }
+## Generate ascii files with percentage cover within 500 m radius
+  radius <- resolution*5
+
+# set the circular filter
+  cf<-make_circ_filter(radius, resolution)
+
+for(i in seq(veg_types)) {
+    
+  generate.pc.ascii(veg_types[i],ghm_mask)
+  
+ }
 
 ## Generate ascii files with percentage cover within 2000 m radius
 radius <- resolution*20
@@ -115,22 +106,21 @@ radius <- resolution*20
 # set the circular filter
   cf<-make_circ_filter(radius, resolution)
 
-for(i in seq(veg.types$num)) {
-  r <- final.veg  
-  r[r!=veg.types$num[i]] <- 0
-  generate.pc.ascii(veg.types$class[i],hccrems_mask,r)
+for(i in seq(veg_types)) {
+    
+  generate.pc.ascii(veg_types[i],ghm_mask)
+  
  }
 
 ```
 
-Create percentage cover rasters for each of the Keith Formation classes at the IBRA region scale
 ```{r run_keith_analysis}
-  setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/vegetation/Keith vegetation raster data")
+  setwd("C:/Users/awhitehead/Documents/GIS data/Hunter/vegetation/Keith vegetation raster data")
 
   veg_types <- c("dry_sclero.asc","rainforests.asc","wet_sclero.asc","cleared.asc", "woody.asc")
 
 # create a sampling mask
-  bioregion_mask <- raster("C:/Users/awhitehead/Documents/GIS_data/Hunter/Plans/Bioregions/ibra_mask.asc")
+  bioregion_mask <- raster("C:/Users/awhitehead/Documents/GIS data/Hunter/Plans/Bioregions/ibra_mask.asc")
         
 # get the resolution of the mask raster
   resolution <- xres(bioregion_mask)

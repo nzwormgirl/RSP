@@ -1,0 +1,39 @@
+Extract environmental data to points
+========================================================
+
+This script will extract the values of a stack of rasters at a set of given points from a csv file and exports it as a csv file.  You just need to set the input directory (line 12), set the name of your point data (line 17), make sure that the column names match up (line 19) and name the output file (line 30). NAs in the output represent missing data in the rasters for a given point.
+
+
+```{r}
+rm(list=ls())
+library(raster)
+
+# the folder that your data lives in
+input.dir <- "C:/Users/awhitehead/Documents/GIS_data/Hunter/Maxent_files/ghm_environmental_data/standardised_rasters"
+setwd(input.dir)
+
+
+# read in a csv file of point data
+species.data <- read.csv("GDA94TM_nswAtlasGGpresabs.csv")
+  species.data <- species.data[1:10,]
+
+#rename the columns to something sensible  
+colnames(species.data) <- c("index", "longitude","latitude")
+
+# read in environmental data
+(gis.files <- dir("C:/Users/awhitehead/Documents/GIS_data/Hunter/Maxent_files/ghm_environmental_data/standardised_rasters", pattern="*.asc$", recursive=T, full.names=T))
+  gis.rasters <- lapply(gis.files,raster)
+    gis.rasters <- stack(gis.rasters)
+
+# extract raster values
+mySpeciesOcc <- as.data.frame(cbind(species.data,extract(gis.rasters,species.data[,c("longitude","latitude")])))
+
+mySpeciesOcc <- species.data[complete.cases(extract(gis.rasters,species.data[,c("x","y")]))==TRUE,c("index","x","y")]
+
+
+
+#export file
+write.csv(mySpeciesOcc, "mySpeciesOcc.csv", row.names=F)
+
+```
+

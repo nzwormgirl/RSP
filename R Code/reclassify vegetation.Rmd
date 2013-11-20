@@ -1,0 +1,151 @@
+Reclassify the PB vegetation data and combine with Upper Hunter
+
+```{r setup}
+rm(list=ls())
+start.time <- proc.time()
+
+  envi.directory <- "~/GIS_data/Hunter/vegetation/"
+  output.directory <- "~/GIS_data/Hunter/vegetation/"
+
+setwd(output.directory)
+
+packages(raster)
+packages(rgdal)
+packages(maptools)
+
+greater.hunter <- raster("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/hccrems_mask.asc")
+lower.hunter <- raster("~/GIS_data/Hunter/zonation/lower hunter/output_lower.hunter_all.rank.asc")
+
+
+ghm.veg <- raster("GHM raster data/vegetation")
+ghm.veg.reclass <- read.csv("ghm_veg_reclassify.csv")
+for(i in seq(ghm.veg.reclass$GHM_num)){
+     ghm.veg[ghm.veg==ghm.veg.reclass$GHM_num[i]] <- ghm.veg.reclass$Mosiac_num[i]+100 
+}
+
+ghm.veg <- ghm.veg - 100
+
+lh.veg <- raster("LH_Kform")
+lh.veg.reclass <- read.csv("lh_veg_reclassify.csv")
+for(i in seq(lh.veg.reclass$PB_num)){
+     lh.veg[lh.veg==lh.veg.reclass$PB_num[i]] <- lh.veg.reclass$Mosiac_num[i]+100 
+}
+
+lh.veg <- lh.veg - 100
+
+lh.veg.resamp <- resample(lh.veg,ghm.veg)
+
+final.veg <- merge(lh.veg.resamp,ghm.veg,filename="~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/vegetation/final_vegetation.tif",ovewrite=T)
+
+
+# Don't do it - it will take forever and then die!
+#ghm.veg <- readShapePoly("GHMv4_veg.shp")
+
+veg_reclasses <- read.csv("reclassifying_hunter_veg.csv")
+
+create.raster <- function (s, mask.raster, label, field, transform=TRUE) {
+    
+   if(transform==TRUE) {
+     proj4string(s) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+    s <- spTransform(s, CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+     }
+    
+  r <- rasterize(s,mask.raster, field)
+    r <- mask(merge(r,mask.raster),mask.raster)
+    names(r) <- label
+    
+    plot(r, main=label)
+    
+   writeRaster(r,paste0(output.directory,label), format="GTiff", overwrite=T)
+    return(r)
+  }
+
+```
+
+Not sure we actually to do this step anymore
+
+```{r reclassify}
+lh.mosiac <- veg_reclasses[1:13,c(3,4)]
+
+new_lh <- reclassify(lh.veg, d(is=lh.mosiac[,1],becomes=lh.mosiac[,2]))
+
+```
+
+
+```{r reclassify K formation}
+
+# veg types to reclassify
+veg.classes <- unique(lh.veg$VegCommNam[is.na(lh.veg$Formation_)])
+
+# add new levels to field
+levels(lh.veg$Amy_Kforma) <- c(levels(lh.veg$Amy_Kforma),"Water", "Exotic", "Naturally bare", "Disturbed", "Other", "Dry Sclerophyll", "Wet Sclerophyll")
+
+# Water
+water <- veg_reclasses$VegCommNam[veg_reclasses$VegCommNam_reclass == "Water"]
+ lh.veg$Amy_Kforma[which(lh.veg$VegCommNam %in% water==TRUE)] <- "Water"
+
+# Exotic
+exotic <- veg_reclasses$VegCommNam[veg_reclasses$VegCommNam_reclass == "Exotic"]
+  lh.veg$Amy_Kforma[which(lh.veg$VegCommNam %in% exotic==TRUE)] <- "Exotic"
+
+#Naturally bare ground
+bare.ground <-  veg_reclasses$VegCommNam[veg_reclasses$VegCommNam_reclass == "Naturally bare"]
+  lh.veg$Amy_Kforma[which(lh.veg$VegCommNam %in% bare.ground==TRUE)] <- "Naturally bare"
+  
+# Disturbed vegetation
+disturbed <-  veg_reclasses$VegCommNam[veg_reclasses$VegCommNam_reclass == "Disturbed"]
+  lh.veg$Amy_Kforma[which(lh.veg$VegCommNam %in% disturbed==TRUE)] <- "Disturbed"
+
+# Dry Sclerophyll
+lh.veg$Amy_Kforma[grep("Dry Sclerophyll", lh.veg$Amy_Kforma)] <- "Dry Sclerophyll"
+ dry.sclerophyll <- veg_reclasses$VegCommNam[veg_reclasses$VegCommNam_reclass == "Dry Sclerophyll"]
+  lh.veg$Amy_Kforma[which(lh.veg$VegCommNam %in% dry.sclerophyll==TRUE)] <- "Dry Sclerophyll"
+
+# Wet Scelrophyll
+lh.veg$Amy_Kforma[grep("Wet Sclerophyll", lh.veg$Amy_Kforma)] <- "Wet Sclerophyll"
+wet.sclerophyll <- veg_reclasses$VegCommNam[veg_reclasses$VegCommNam_reclass == "Wet Sclerophyll"]
+  lh.veg$Amy_Kforma[which(lh.veg$VegCommNam %in% wet.sclerophyll==TRUE)] <- "Wet Sclerophyll"
+  
+# other
+other <- veg_reclasses$VegCommNam[veg_reclasses$VegCommNam_reclass == "Other"]
+  lh.veg$Amy_Kforma[which(lh.veg$VegCommNam %in% other==TRUE)] <- "Other"
+
+#Grassy Woodlands
+grassy.woodlands <- veg_reclasses$VegCommNam[veg_reclasses$VegCommNam_reclass == "Grassy Woodlands"]
+  lh.veg$Amy_Kforma[which(lh.veg$VegCommNam %in% grassy.woodlands==TRUE)] <- "Grassy Woodlands"
+
+unique(lh.veg$VegCommNam[is.na(lh.veg$Amy_Kforma)])
+veg_reclasses$final_Kforma <- unique(lh.veg$Amy_Kforma)
+veg_reclasses$final_Kforma_num <- as.numeric(as.factor(veg_reclasses$final_Kforma))
+
+# write.csv(veg_reclasses, "PB_veg.classes.csv")
+
+```
+
+What are we doing with the bits that haven't been reclassified?  How do we want to define non-native vegetation, recognising that it won't all necessarily be the same.
+
+```{r rasterise PB_vegetation}
+
+lh.veg.raster <- create.raster(lh.veg[!is.na(lh.veg$Amy_Kforma),], greater.hunter, field="Amy_Kforma", transform=FALSE, label="LH_veg")
+
+rasterize(lh.veg,greater.hunter,field="VegID", update=T)
+
+Amy_Kforma_num <- as.numeric(as.factor(lh.veg$Amy_Kforma))
+
+test <- rasterize(lh.veg,greater.hunter,update=T,field=Amy_Kforma_num)
+```
+
+Can we just overwrite the GHM values in the lower hunter with the reclassified data?  Need to check that the values will be the equivalent. 
+
+If that's it, then we just need to generate the % cover values and then we can rerun the SDMs.
+
+```{r reclassify GHM }
+
+lh.veg.raster <- create.raster(lh.veg[!is.na(lh.veg$Amy_Kforma),], greater.hunter, field="Amy_Kforma", transform=FALSE, label="LH_veg")
+
+lh.veg.raster <-rasterize(lh.veg,greater.hunter,field="VegID", update=T)
+
+Amy_Kforma_num <- as.numeric(as.factor(lh.veg$Amy_Kforma))
+
+test <- rasterize(lh.veg,greater.hunter,update=T,field=Amy_Kforma_num)
+```

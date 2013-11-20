@@ -130,6 +130,10 @@ for (k in seq(taxa)){
       
       all.records <- combine.records(NC.records, SB.records)
         all.records <- combine.records(all.records, BB.records)
+      
+      coordinates(all.records) <- c("Longitude_GDA94","Latitude_GDA94")
+      projection(all.records) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+      all.records <- spTransform(all.records,CRS("+proj=lcc +lat_1=-18 +lat_2=-36 +lat_0=0 +lon_0=134 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
         
      if(is.null(all.records)==FALSE) {
         protected.species$Downloaded.NSW[protected.species$Scientific.Name==species.list[i]] <- "yes"

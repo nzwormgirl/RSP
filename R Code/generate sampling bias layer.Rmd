@@ -1,0 +1,89 @@
+Create sampling bias layer 
+========================================================
+
+Use maxent data to create a sampling bias layer using the Moore neighbourhood
+
+```{r setup}
+rm(list=ls())
+packages(raster)
+
+setwd("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/")
+
+#function to make a circular weights matrix of given radius and resolution
+#NB radius must be an even multiple of res!
+make_circ_filter<-function(radius, res){
+  require(raster)
+  circ_filter<-matrix(NA, nrow=1+(2*radius/res), ncol=1+(2*radius/res))
+  dimnames(circ_filter)[[1]]<-seq(-radius, radius, by=res)
+  dimnames(circ_filter)[[2]]<-seq(-radius, radius, by=res)
+  sweeper<-function(mat){
+    for(row in 1:nrow(mat)){
+      for(col in 1:ncol(mat)){
+        dist<-sqrt((as.numeric(dimnames(mat)[[1]])[row])^2 +
+          (as.numeric(dimnames(mat)[[1]])[col])^2)
+        if(dist<=radius) {mat[row, col]<-1}
+      }
+    }
+    return(mat)
+  }
+out<-sweeper(circ_filter)
+return(out)
+}
+
+# function to sum the values in the circular filter and divides by the number of cells 
+##(removing all cells with NA values)
+percent.cover <- function(x){ sum(x,na.rm=T)/sum(cf, na.rm=T)}
+
+ generate.pc.ascii <- function (filename, mask) {
+    sample.raster <- raster(filename)
+    
+    cat("\n","Loaded",filename)
+    
+    sample.raster <- resample(sample.raster,mask, method="bilinear")
+
+  # calculate the percentage cover within the circular filter
+    cat("\n","Calculating % cover of",filename," within",radius,"m radius")
+    r_filt <- focal(sample.raster, w=cf, fun=percent.cover)*mask
+  
+    par(mfrow=c(1,2))
+    plot(sample.raster, main=filename, axes=F) #original data
+    plot(r_filt, main=paste0(radius,"m ",filename), axes=F) #filtered data
+  
+  writeRaster(r_filt, paste0("ascii files/veg.",radius,filename), overwrite=TRUE)
+    cat("\n","Saved",paste0("veg",radius,filename),"in",paste0(getwd(),"/ascii files"),"\n","\n")
+  }
+
+```
+
+```{r import data}
+
+maxent.data <- read.csv("C:/Users/awhitehead/Documents/GIS_data/Hunter/Maxent_files/species_data/maxent.data_ALA.NSW.csv")
+  coordinates(maxent.data) <- c("easting","northing")
+
+greater.hunter <- raster("hccrems_mask.asc")
+
+plot(greater.hunter,col="grey",legend="F")
+points(maxent.data, pch=".")
+
+maxent.raster <- rasterize(maxent.data,greater.hunter,field=1,update=T)
+plot(maxent.raster)
+```
+
+
+
+```{r create sampling bias}
+
+resolution <- xres(greater.hunter)
+radius <- resolution*2
+# set the circular filter
+  cf<-make_circ_filter(radius, resolution)
+
+min.bias <- 0.05
+
+r_filt <- mask(focal(maxent.raster, w=cf, fun=percent.cover),greater.hunter)
+  r_filt[r_filt<min.bias] <- min.bias
+
+writeRaster(r_filt, paste0("topography/sampling.bias_",min.bias,".asc"), overwrite=T )
+
+```
+
