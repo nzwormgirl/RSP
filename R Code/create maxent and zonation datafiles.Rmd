@@ -327,8 +327,6 @@ hccrem.mask.tm <- spTransform(hccrem.mask,CRS("+proj=utm +zone=56 +south +ellps=
       
       if(include.ALA==TRUE) protected.species$final.ALA.NSW.records[protected.species$Scientific.Name==unique(gda.tm_maxent.data$species)[i]] <- nrow(output)
       protected.species$lower.hunter[protected.species$Scientific.Name==unique(gda.tm_maxent.data$species)[i]] <- in.lh
-      
-      #if(include.ALA==FALSE) protected.species$final.NSW.records[protected.species$Scientific.Name==unique(gda.tm_maxent.data$species)[i]] <- nrow(output)
          
       rm(input,cell,output,in.lh,in.gh)
     }
@@ -393,7 +391,7 @@ export_lh.ssi.zonation.data <- export_ssi.zonation.data
       cell <- cellFromXY(hccrems.raster,input[,3:4])
       output <- input[!duplicated(cell),]
       export_lh.ssi.zonation.data <- rbind(export_lh.ssi.zonation.data,output)
-        #if(include.ALA==TRUE) protected.species$final.ALA.NSW.records[protected.species$Scientific.Name==unique(gda.tm_lh.ssi.zonation.data$species)[i]] <- nrow(output)
+        if(include.ALA==TRUE) protected.species$final.ALA.NSW.records[protected.species$Scientific.Name==unique(gda.tm_lh.ssi.zonation.data$species)[i]] <- nrow(output)
         #if(include.ALA==FALSE) protected.species$final.NSW.records[protected.species$Scientific.Name==unique(gda.tm_lh.ssi.zonation.data$species)[i]] <- nrow(output) 
       rm(input,cell,output)
     }
@@ -411,12 +409,12 @@ if(save.output ==TRUE) {
     for (i in seq(lh.ssi.export.species)) {
       export <- export_lh.ssi.zonation.data[export_lh.ssi.zonation.data$species == lh.ssi.export.species[i],]
         export <- export[,colnames(export)!="database"]
-      write.table(export[,!names(export) %in% c("species")], paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/lower hunter/ssi_files/",lh.ssi.export.species[i],"_LH.txt"),row.names=FALSE, sep="\t", col.names=FALSE)
+      write.table(export[,!names(export) %in% c("species")], paste0("~/GIS_data/Hunter/zonation/lower hunter/ssi_files/",lh.ssi.export.species[i],"_LH.txt"),row.names=FALSE, sep="\t", col.names=FALSE)
     }
      
     #write.csv(protected.species, "C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/IBRA threatened species list.csv", row.names=FALSE)
   
-  cat("\n", nrow(export_lh.ssi.zonation.data), "records exported to", length(lh.ssi.export.species), "individual ssi csv files")
+  cat("\n", nrow(export_lh.ssi.zonation.data), "records exported to", length(lh.ssi.export.species), "individual ssi csv files for lower hunter")
     }
    
   if(export.ssi == "tif"){
@@ -426,7 +424,7 @@ if(save.output ==TRUE) {
     speciesRaster <- merge(speciesRaster,mask.raster)
     #label the raster
     names(speciesRaster) <- raster.label
-   writeRaster(speciesRaster,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/lower hunter/",raster.label,"_LH.tif"), format="GTiff",overwrite=T)
+   writeRaster(speciesRaster,paste0("~/GIS_data/Hunter/zonation/lower hunter/",raster.label,"_LH.tif"), format="GTiff",overwrite=T)
   cat("Converted",raster.label,"to raster","\n")
 }
     
@@ -493,12 +491,12 @@ if(save.output ==TRUE) {
     for (i in seq(gh.ssi.export.species)) {
       export <- export_gh.ssi.zonation.data[export_gh.ssi.zonation.data$species == gh.ssi.export.species[i],]
         export <- export[,colnames(export)!="database"]
-      write.table(export[,!names(export) %in% c("species")], paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/greater hunter/ssi_files/",gh.ssi.export.species[i],"_GH.txt"),row.names=FALSE, sep="\t", col.names=FALSE)
+      write.table(export[,!names(export) %in% c("species")], paste0("~/GIS_data/Hunter/zonation/greater hunter/ssi_files/",gh.ssi.export.species[i],"_GH.txt"),row.names=FALSE, sep="\t", col.names=FALSE)
     }
      
     write.csv(protected.species, "C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/IBRA threatened species list.csv", row.names=FALSE)
   
-  cat("\n", nrow(export_gh.ssi.zonation.data), "records exported to", length(gh.ssi.export.species), "individual ssi csv files")
+  cat("\n", nrow(export_gh.ssi.zonation.data), "records exported to", length(gh.ssi.export.species), "individual ssi csv files for greater hunter")
     }
    
   if(export.ssi == "tif"){
@@ -553,17 +551,22 @@ The `zonation.spp` table lists each species and the required input for zonation.
 ```{r export_zonation.file, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
 # this code block produces two species lists for zonation analyses based on the above data: one with all threatened species with sufficient data for the maxent analysis and one with just the MNES species
   
-  zonation.spp <- d(weight=rep(1.0,length(export.species)), alpha=1.0, bqp.row=1.0, bqp.buffer=1.0, cell.removal=1.0, species=NA )
-    zonation.spp$species <- paste0(export.species,".tif")
-    zonation.spp$species <- gsub(" ","_",zonation.spp$species)
+  gh.sdm.zonation.spp <- d(weight=rep(1.0,length(export.species)), alpha=1.0, bqp.row=1.0, bqp.buffer=1.0, cell.removal=1.0, species=NA )
+    gh.sdm.zonation.spp$species <- paste0(export.species,".tif")
+    gh.sdm.zonation.spp$species <- gsub(" ","_",gh.sdm.zonation.spp$species)
 
-mnes.export.species <- export.species[which(export.species %in% protected.species$Scientific.Name[protected.species$mnes == TRUE])]
+  lh.sdm.species <- protected.species$Scientific.Name[which(protected.species$lower.hunter>=min.records)]
+    lh.sdm.species <- paste0(gsub(" ","_",lh.sdm.species),".tif")
+  lh.sdm.zonation.spp <- gh.zonation.spp
+    lh.sdm.zonation.spp <- lh.sdm.zonation.spp[which(lh.sdm.zonation.spp$species %in% lh.sdm.species),]
 
-mnes.zonation.spp <- d(weight=rep(1.0,length(mnes.export.species)), alpha=1.0, bqp.row=1.0, bqp.buffer=1.0, cell.removal=1.0, species=NA )
-    mnes.zonation.spp$species <- paste0(mnes.export.species,".tif")
-    mnes.zonation.spp$species <- gsub(" ","_",mnes.zonation.spp$species)
-
-h(zonation.spp)
+# mnes.export.species <- export.species[which(export.species %in% protected.species$Scientific.Name[protected.species$mnes == TRUE])]
+# 
+# mnes.zonation.spp <- d(weight=rep(1.0,length(mnes.export.species)), alpha=1.0, bqp.row=1.0, bqp.buffer=1.0, cell.removal=1.0, species=NA )
+#     mnes.zonation.spp$species <- paste0(mnes.export.species,".tif")
+#     mnes.zonation.spp$species <- gsub(" ","_",mnes.zonation.spp$species)
+# 
+# h(zonation.spp)
   
 # species of special interest in lower hunter
   lh.ssi.list <- lh.ssi.export.species
@@ -577,7 +580,7 @@ h(zonation.spp)
   lh.ssi.zonation.spp <- d(weight=rep(1.0,length(lh.ssi.list)), alpha=1.0, bqp.row=1.0, bqp.buffer=1.0, cell.removal=1.0, species=NA )
   lh.ssi.zonation.spp$species <- paste0(lh.ssi.list,".txt")
 
-lh.zonation.spp <- rbind(zonation.spp, lh.ssi.zonation.spp)
+lh.zonation.spp <- rbind(lh.sdm.zonation.spp, lh.ssi.zonation.spp)
   lh.zonation.spp$species <- gsub(".txt",".tif",lh.zonation.spp$species)
   lh.zonation.spp <- lh.zonation.spp[!duplicated(lh.zonation.spp$species),]
 
@@ -593,12 +596,13 @@ lh.zonation.spp <- rbind(zonation.spp, lh.ssi.zonation.spp)
   gh.ssi.zonation.spp <- d(weight=rep(1.0,length(gh.ssi.list)), alpha=1.0, bqp.row=1.0, bqp.buffer=1.0, cell.removal=1.0, species=NA )
   gh.ssi.zonation.spp$species <- paste0(gh.ssi.list,".txt")
 
-gh.zonation.spp <- rbind(zonation.spp, gh.ssi.zonation.spp)
+gh.zonation.spp <- rbind(gh.sdm.zonation.spp, gh.ssi.zonation.spp)
   gh.zonation.spp$species <- gsub(".txt",".tif",gh.zonation.spp$species)
   gh.zonation.spp <- gh.zonation.spp[!duplicated(gh.zonation.spp$species),]
 
 if(save.output ==TRUE) {
-  write.table(zonation.spp,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/greater hunter/zonation.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+  write.table(gh.sdm.zonation.spp,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/greater hunter/gh.sdm.zonation.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+  write.table(lh.sdm.zonation.spp,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/greater hunter/lh.sdm.zonation.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
    # write.table(mnes.zonation.spp,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/greater hunter/mnes.zonation.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
   write.table(lh.ssi.zonation.spp,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/greater hunter/lh.ssi.zonation.txt"),sep="\t",row.names=FALSE, col.names=FALSE)
   write.table(gh.ssi.zonation.spp,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/greater hunter/gh.ssi.zonation.txt"),sep="\t",row.names=FALSE, col.names=FALSE)
@@ -607,7 +611,7 @@ if(save.output ==TRUE) {
   write.table(gh.zonation.spp,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/greater hunter/gh.zonation.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
 }
 
-cat("\n", "zonation.spp file saved with default values for all SDM",length(export.species),"species", "\n", "mnes.zonation.spp file saved with default values for all",length(mnes.export.species),"species","\n", "lh.ssi.zonation.txt file saved with default values for all",length(lh.ssi.list),"species","\n", "gh.ssi.zonation.txt file saved with default values for all",length(gh.ssi.list),"species","\n", "lh.zonation.spp file saved with default values for ",nrow(lh.zonation.spp),"lower hunter species","\n", "gh.zonation.spp file saved with default values for ",nrow(gh.zonation.spp),"greater hunter species")
+cat("\n", "gh.sdm.zonation.spp file saved with default values for all SDM",nrow(gh.sdm.zonation.spp),"species", "\n", "lh.sdm.zonation.spp file saved with default values for all SDM",nrow(lh.sdm.zonation.spp),"species","\n", "lh.ssi.zonation.txt file saved with default values for all",length(lh.ssi.list),"species","\n", "gh.ssi.zonation.txt file saved with default values for all",length(gh.ssi.list),"species","\n", "lh.zonation.spp file saved with default values for",nrow(lh.zonation.spp),"lower hunter species","\n", "gh.zonation.spp file saved with default values for",nrow(gh.zonation.spp),"greater hunter species")
 ```
 
 
