@@ -16,28 +16,46 @@ packages(maptools)
 greater.hunter <- raster("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/hccrems_mask.asc")
 lower.hunter <- raster("~/GIS_data/Hunter/zonation/lower hunter/output_lower.hunter_all.rank.asc")
 
+  # reclassify the greater hunter vegetation
+  ghm.veg <- raster("GHM raster data/vegetation")
+  ghm.veg.reclass <- read.csv("ghm_veg_reclassify.csv")
+  for(i in seq(ghm.veg.reclass$GHM_num)){
+       ghm.veg[ghm.veg==ghm.veg.reclass$GHM_num[i]] <- ghm.veg.reclass$Mosiac_num[i]+100 
+  }
+  
+  ghm.veg <- ghm.veg - 100
 
-ghm.veg <- raster("GHM raster data/vegetation")
-ghm.veg.reclass <- read.csv("ghm_veg_reclassify.csv")
-for(i in seq(ghm.veg.reclass$GHM_num)){
-     ghm.veg[ghm.veg==ghm.veg.reclass$GHM_num[i]] <- ghm.veg.reclass$Mosiac_num[i]+100 
-}
+  # reclassify the lower hunter vegetation
+  lh.veg <- raster("LH_Kform")
+  lh.veg.reclass <- read.csv("lh_veg_reclassify.csv")
+  for(i in seq(lh.veg.reclass$PB_num)){
+       lh.veg[lh.veg==lh.veg.reclass$PB_num[i]] <- lh.veg.reclass$Mosiac_num[i]+100 
+  }
+  
+    lh.veg <- lh.veg - 100
+    lh.veg.resamp <- resample(lh.veg,ghm.veg)
+  
+  # merge the lower and greater hunter vegetation data together, placing the lower hunter data on top
+  final.veg <- merge(lh.veg.resamp,ghm.veg)
 
-ghm.veg <- ghm.veg - 100
+  # add the raster attributes to the table
+  raster.attributes <- lh.veg.reclass[!duplicated(lh.veg.reclass$Mosiac_num)& !is.na(lh.veg.reclass$Mosiac_num),c(ID="Mosiac_num",Kformation="Mosiac")]
+    colnames(raster.attributes) <- c("ID","Kformation")
+    raster.attributes <- raster.attributes[order(raster.attributes$ID),]
+    write.csv(raster.attributes, "~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/vegetation/vegetation_attributes.csv", row.names=F)
+  
+  levels(lh.veg) <- raster.attributes
+  levels(ghm.veg) <- raster.attributes
+  levels(final.veg) <- raster.attributes
 
-lh.veg <- raster("LH_Kform")
-lh.veg.reclass <- read.csv("lh_veg_reclassify.csv")
-for(i in seq(lh.veg.reclass$PB_num)){
-     lh.veg[lh.veg==lh.veg.reclass$PB_num[i]] <- lh.veg.reclass$Mosiac_num[i]+100 
-}
-
-lh.veg <- lh.veg - 100
-
-lh.veg.resamp <- resample(lh.veg,ghm.veg)
-
-final.veg <- merge(lh.veg.resamp,ghm.veg,filename="~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/vegetation/final_vegetation.tif",ovewrite=T)
+writeRaster(final.veg,filename="~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/vegetation/final_vegetation.tif", ovewrite=TRUE, datatype='INT1U')
 
 
+
+```
+
+
+```{r}
 # Don't do it - it will take forever and then die!
 #ghm.veg <- readShapePoly("GHMv4_veg.shp")
 
