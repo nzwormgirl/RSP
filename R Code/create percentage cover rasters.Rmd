@@ -72,8 +72,12 @@ presence.absence <- function(x) { x[x<threshold] <- 0
     
     file.name <- gsub(" ","_",file.name)
   
-  writeRaster(r_filt, paste0("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/vegetation/veg.",radius,file.name,".asc"), overwrite=TRUE)
+    writeRaster(r_filt, paste0("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/vegetation/veg.",radius,file.name,".asc"), overwrite=TRUE)
     cat("\n","Saved",paste0("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/vegetation/veg.",radius,file.name),"\n","\n")
+  
+  return(r_filt)
+  
+  gc()
   }
 ```
 
@@ -91,11 +95,11 @@ ghm.veg.reclass <- read.csv("~/GIS_data/Hunter/vegetation/ghm_veg_reclassify.csv
 #   veg_types <- c("dry_sclero.asc","rainforests.asc","wet_sclero.asc","woodlands.asc","woody.asc")
 
 # create a sampling mask
-  hccrems_mask <- raster("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/hccrems_mask.asc")
-    hccrems_mask[!is.na(hccrems_mask)] <- 1
+  GH.mask <- raster("~/GIS_data/Hunter/mask files/GH.mask.tif")
+    GH.mask[!is.na(GH.mask)] <- 1
         
 # get the resolution of the mask raster
-  resolution <- xres(hccrems_mask)
+  resolution <- xres(GH.mask)
   
 # ## Generate ascii files with percentage cover within 500 m radius
 #   radius <- resolution*5
@@ -105,7 +109,7 @@ ghm.veg.reclass <- read.csv("~/GIS_data/Hunter/vegetation/ghm_veg_reclassify.csv
 # 
 # for(i in seq(veg_types)) {
 #     
-#   generate.pc.ascii(veg_types[i],hccrems_mask)
+#   generate.pc.ascii(veg_types[i],GH.mask)
 #   
 #  }
 
@@ -118,7 +122,7 @@ radius <- resolution*20
 for(i in seq(veg.types$num)) {
   r <- final.veg  
   r[r!=veg.types$num[i]] <- 0
-  generate.pc.ascii(veg.types$class[i],hccrems_mask,r)
+  generate.pc.ascii(veg.types$class[i],GH.mask,r)
  }
 
 ```
@@ -160,5 +164,29 @@ for(i in seq(veg_types)) {
  }
 
 ```
+
+```{r create patch size raster}
+  GH.mask <- raster("~/GIS_data/Hunter/mask files/GH.mask.tif")
+    GH.mask[!is.na(GH.mask)] <- 1
+
+  GH.clipping.mask <- raster("~/GIS_data/Hunter/mask files/GH.clipping.mask.tif")
+    GH.clipping.mask[is.na(GH.clipping.mask)] <- 0
+    GH.clipping.mask <- mask(GH.clipping.mask,GH.mask)
+
+  resolution <- xres(GH.mask)
+
+## Generate ascii files with percentage cover within 500 m radius
+  radius <- resolution*seq(10,50,by=10)
+
+
+for(i in seq(radius)){
+  # set the circular filter
+    cf<-make_circ_filter(radius[i], resolution)
+      
+    assign(paste0("patch.size.",radius[i]), generate.pc.ascii("GH_patch.size",GH.mask,GH.clipping.mask))
+  }
+
+```
+
 
 *This file was last updated on 24 February 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*

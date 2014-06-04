@@ -13,8 +13,8 @@ packages(raster)
 packages(rgdal)
 packages(maptools)
 
-greater.hunter <- raster("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/hccrems_mask.asc")
-lower.hunter <- raster("~/GIS_data/Hunter/zonation/lower hunter/output_lower.hunter_all.rank.asc")
+greater.hunter <- raster("~/GIS_data/Hunter/mask files/GH.mask.tif")
+lower.hunter <- raster("~/GIS_data/Hunter/mask files/LH.mask.tif")
 
   # reclassify the greater hunter vegetation
   ghm.veg <- raster("GHM raster data/vegetation")
@@ -24,19 +24,44 @@ lower.hunter <- raster("~/GIS_data/Hunter/zonation/lower hunter/output_lower.hun
   }
   
   ghm.veg <- ghm.veg - 100
+    ghm.veg <- crop(ghm.veg,extent(greater.hunter))
+    extent(ghm.veg) <- alignExtent(ghm.veg,greater.hunter)
 
   # reclassify the lower hunter vegetation
-  lh.veg <- raster("LH_Kform")
-  lh.veg.reclass <- read.csv("lh_veg_reclassify.csv")
+  lh.veg <- raster("LHVM_FinalPB_OEH.tif")
+  lh.veg.reclass <- read.csv("LHVM_Final_PB_OEH_reclassify.csv")
   for(i in seq(lh.veg.reclass$PB_num)){
        lh.veg[lh.veg==lh.veg.reclass$PB_num[i]] <- lh.veg.reclass$Mosiac_num[i]+100 
   }
   
     lh.veg <- lh.veg - 100
-    lh.veg.resamp <- resample(lh.veg,ghm.veg)
+      lh.veg <- extend(lh.veg,extent(greater.hunter))
+
+ # reclassify the PortMac Crafti vegetation
+  pm.crafti.veg <- raster("Port Mac/CRAFTI_veg_mapping.tif")
+  pm.crafti.veg.reclass <- read.csv("crafti_veg_reclassify.csv")
+  for(i in seq(pm.crafti.veg.reclass$CRAFTI_Num)){
+       pm.crafti.veg[pm.crafti.veg==pm.crafti.veg.reclass$CRAFTI_Num[i]] <- pm.crafti.veg.reclass$Mosiac_num[i]+100 
+  }
+  
+    pm.crafti.veg <- pm.crafti.veg - 100
+      pm.crafti.veg <- extend(pm.crafti.veg,extent(greater.hunter))
+
+# reclassify the PortMac protected area vegetation
+  portmac.veg <- raster("Port Mac/portveg2406_2013.tif")
+  portmac.veg.reclass <- read.csv("portmac_veg_reclassify.csv")
+  for(i in seq(portmac.veg.reclass$PM_Num)){
+       portmac.veg[portmac.veg==portmac.veg.reclass$PM_Num[i]] <- portmac.veg.reclass$Mosiac_num[i]+100 
+  }
+  
+    portmac.veg <- portmac.veg - 100
+      portmac.veg <- extend(portmac.veg,extent(greater.hunter))
+
   
   # merge the lower and greater hunter vegetation data together, placing the lower hunter data on top
-  final.veg <- merge(lh.veg.resamp,ghm.veg)
+  final.veg <- mask(merge(portmac.veg,pm.crafti.veg,lh.veg,ghm.veg),greater.hunter)
+
+  plot(final.veg,axes=F,legend=F,box=F)
 
   # add the raster attributes to the table
   raster.attributes <- lh.veg.reclass[!duplicated(lh.veg.reclass$Mosiac_num)& !is.na(lh.veg.reclass$Mosiac_num),c(ID="Mosiac_num",Kformation="Mosiac")]
@@ -46,6 +71,8 @@ lower.hunter <- raster("~/GIS_data/Hunter/zonation/lower hunter/output_lower.hun
   
   levels(lh.veg) <- raster.attributes
   levels(ghm.veg) <- raster.attributes
+  levels(pm.crafti.veg) <- raster.attributes
+  levels(portmac.veg) <- raster.attributes
   levels(final.veg) <- raster.attributes
 
 writeRaster(final.veg,filename="~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/vegetation/final_vegetation.tif", ovewrite=TRUE, datatype='INT1U')
