@@ -1,0 +1,139 @@
+Create development scenarios for LH RGP report
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **Help** toolbar button for more details on using R Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r extract LEP mask layer}
+rm(list=ls())
+packages(raster)
+packages(rgdal)
+source("C:/Users/awhitehead/Dropbox/Random R code/shp2raster.R")
+
+setwd(lep.dir <- "~/GIS_data/Hunter/All data from harddrive/From OEH/Raw data for RGP report")
+
+# projections 
+  GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+# new LEP layer
+  lep.shp <- readOGR(dsn=".",layer="LEP_Current")
+
+```
+
+```{r create new lep shapefile}
+
+
+# # extract unique zones and descriptions
+#   lep.zones <- as.data.frame(table(lep.shp$ZONE_CODE,lep.shp$DESCRIPTIO))
+#     lep.zones <- lep.zones[lep.zones$Freq!=0,]
+#     colnames(lep.zones) <- c("ZONE_CODE","DESCRIPTIO","Freq")
+#     lep.zones <- lep.zones[order(lep.zones$ZONE_CODE),]    
+# 
+# # actions for lep zones
+#   lep.action <- read.csv("~/GIS_data/Hunter/All data from harddrive/LEP/LEP Biodiversity zoning table.csv")
+# 
+# # combine lep zone actions
+#   lep.zones$Action <- NA
+#     lep.zones$Action[lep.zones$ZONE_CODE %in% unique(lep.action$Code[lep.action$Action=="Mask"])] <- "Mask"
+#     lep.zones$Action[lep.zones$ZONE_CODE %in% unique(lep.action$Code[lep.action$Action=="Accept"])] <- "Accept"
+#     write.csv(LEP.zones,paste0("~/GIS_data/Hunter/All data from harddrive/LEP/LEP Biodiversity zoning table_",format(Sys.time(), "%Y%m%d"),".csv"),row.names=F)
+
+# load updated lep zone actions
+  lep.zones <- read.csv("~/GIS_data/Hunter/All data from harddrive/LEP/LEP Biodiversity zoning table_20140508.csv")
+    lep.mask <- unique(lep.zones$ZONE_CODE[lep.zones$Action=="Mask"])
+
+# extract lep zones for development mask layer
+  lep.shp <- lep.shp[lep.shp$ZONE_CODE %in% lep.mask,]
+    lep.shp <- lep.shp[!lep.shp$COMMENTS %in% "Bombing range",]
+
+# export as shapefile
+  writeOGR(lep.shp,dsn=".",layer="LEP_Current_Amy", driver="ESRI Shapefile",overwrite_layer=T)
+
+```
+
+Note that background values need to be higher than development values, so that Zonation removes the development areas first.  LEPs should have a lower value than DPE layers. Should also create development layers with stepped values for the 10 growth areas to identify which will have the highest impact.
+
+
+```{r convert lep zones to raster}
+# new lep layer
+  lep.shp <- readOGR(dsn=".",layer="LEP_Current_Amy")
+
+# import LH mask files
+  LH.mask <- raster("~/GIS_data/Hunter/mask files/LH.mask.tif")
+  LH.clipping.mask <- raster("~/GIS_data/Hunter/mask files/LH.clipping.mask.tif")
+
+# convert to raster
+  LH_leps <- shp2raster(lep.shp,LH.mask,value=1,bkg=3,label="LH_lep")
+  plot(LH_leps_clipped <- mask(LH_leps,LH.clipping.mask, filename = "LH_lep_clipped", format = "GTiff",overwrite = T))
+
+```
+
+```{r convert DPE layers}
+# import DPE shapefiles
+  URA_Option_1_and_2.shp <- readOGR(dsn=".",layer="URA_Option_1_and_2")
+  URA_Option_1_and_2_EPBC_Removed.shp <- readOGR(dsn=".",layer="URA_Option_1_and_2_EPBC_Removed")
+  URA_Option_3.shp <- readOGR(dsn=".",layer="URA_Option_3")
+
+# convert to raster
+  LH_Option_1_2 <- shp2raster(URA_Option_1_and_2.shp,LH.mask,value=2,bkg=3,label="LH_opt12")
+    plot(LH_Option_1_2_clipped <- mask(LH_Option_1_2,LH.clipping.mask, filename = "LH_opt12_clipped", format = "GTiff",overwrite = T))
+
+  LH_Option_1_2_EPBC_Removed <- shp2raster(URA_Option_1_and_2_EPBC_Removed.shp,LH.mask,value=1,bkg=3,label="LH_opt12_ER")
+    plot(LH_Option_1_2_EPBC_Removed_clipped <- mask(LH_Option_1_2_EPBC_Removed,LH.clipping.mask, filename = "LH_opt12_ER_clipped", format = "GTiff",overwrite = T))
+
+  LH_Option_3 <- shp2raster(URA_Option_3.shp,LH.mask,value=2,bkg=3,label="LH_opt3")
+    plot(LH_Option_3_clipped <- mask(LH_Option_3,LH.clipping.mask, filename = "LH_opt3_clipped", format = "GTiff",overwrite = T))
+
+# extract out just the areas from Option 1 with EPBC approval
+  LH_EPBC_Approved <- sum(stack(LH_Option_1_2,LH_Option_1_2_EPBC_Removed))
+    LH_EPBC_Approved[LH_EPBC_Approved==6] <- 3
+    LH_EPBC_Approved[LH_EPBC_Approved==5] <- 1
+    plot(writeRaster(LH_EPBC_Approved, filename = "LH_opt12_EA", format = "GTiff",overwrite = T))
+
+  plot(LH_EPBC_Approved_clipped <- mask(LH_EPBC_Approved,LH.clipping.mask, filename = "LH_opt12_EA_clipped", format = "GTiff",overwrite = T))
+
+
+```
+
+```{r merge leps and DPE layers}
+# leps & Option 1&2
+  plot(LH_lep_Opt12 <- calc(stack(LH_leps,LH_Option_1_2),min, filename = "LH_lep_opt12", format = "GTiff",overwrite = T))
+    plot(LH_lep_Opt12_clipped <- mask(LH_lep_Opt12,LH.clipping.mask, filename = "LH_lep_opt12_clipped", format = "GTiff",overwrite = T))
+
+# leps & Option 1&2
+  plot(LH_lep_Opt12_ER <- calc(stack(LH_leps,LH_Option_1_2_EPBC_Removed),min, filename = "LH_lep_opt12_ER", format = "GTiff",overwrite = T))
+    plot(LH_lep_Opt12_ER_clipped <- mask(LH_lep_Opt12_ER,LH.clipping.mask, filename = "LH_lep_opt12_ER_clipped", format = "GTiff",overwrite = T))
+
+# leps & Option 3
+  plot(LH_lep_Opt3 <- calc(stack(LH_leps,LH_Option_3),min, filename = "LH_lep_opt3", format = "GTiff",overwrite = T))
+    plot(LH_lep_Opt3_clipped <- mask(LH_lep_Opt3,LH.clipping.mask, filename = "LH_lep_opt3_clipped", format = "GTiff",overwrite = T))
+
+# leps & EPBC approved
+  plot(LH_lep_EPBC_Approved <- calc(stack(LH_leps,LH_EPBC_Approved),min, filename = "LH_lep_opt12_EA", format = "GTiff",overwrite = T))
+    plot(LH_lep_EPBC_Approved_clipped <- mask(LH_lep_EPBC_Approved,LH.clipping.mask, filename = "LH_lep_opt12_EA_clipped", format = "GTiff",overwrite = T))
+
+```
+
+```{r 10 growth areas}
+DPI10.shp <- readOGR(".","LHSA_Ten_GrowthAreaProposals_noInternalines")
+  DPI10.shp <- DPI10.shp[order(DPI10.shp$SHAPE_Area,decreasing=T),]
+
+  DPI10 <- shp2raster(DPI10.shp, LH.mask,value=1,bkg=3,label="LH_DPI10")
+    plot(DPI10_clipped <- mask(DPI10,LH.clipping.mask, filename = "LH_DPI10_clipped", format = "GTiff",overwrite = T))
+
+  DPI10.step <- shp2raster(DPI10.shp, LH.mask,value=1:nrow(DPI10.shp),bkg=nrow(DPI10.shp)+1,label="LH_DPI10step")
+    plot(DPI10.step_clipped <- mask(DPI10.step,LH.clipping.mask, filename = "LH_DPI10step_clipped", format = "GTiff",overwrite = T))
+
+# create individual rasters for each of the DPE growth areas
+  for(i in seq(DPI10.shp$ProjectNam)){
+    label <- paste0("LH_DPI10_",gsub(" ","_",DPI10.shp$ProjectNam[i]))
+      cat("Converting", label,"\n")
+    assign(label,shp2raster(DPI10.shp[i,], LH.mask,value=1,bkg=3,label=label))
+    assign(paste0(label,"_clipped"), mask(get(label),LH.clipping.mask, filename = paste0(label,"_clipped"), format = "GTiff",overwrite = T))
+      plot(get(paste0(label,"_clipped")))
+  }
+
+
+```

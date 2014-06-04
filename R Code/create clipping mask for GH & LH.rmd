@@ -1,0 +1,63 @@
+Create extant vegetation layer to clip all layers for zonation
+========================================================
+
+Create a clippling mask that is used to cut the MaxEnt output for use in Zonation.  Currently only includes remnant vegetation 
+* final vegetation (GH)
+
+* Probably need to add a solid GH layer as well 
+
+```{r setup_functions}
+#load packages and set working directory
+  rm(list=ls())
+  
+  packages(raster)
+  packages(rgdal)
+  packages(maptools)
+  
+  GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+# GH administrative boundary
+  GH.mask <- raster("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/hccrems_mask.asc")
+    writeRaster(GH.mask,filename="~/GIS_data/Hunter/mask files/GH.mask.tif",format="GTiff",overwrite=T)
+  
+# LH administrative boundary
+  LH.shp <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/LHRS_Study_Area.shp", proj4=GDA94.56)
+  
+# create LH mask, snapping to the GH mask
+  LH.mask <- crop(rasterize(LH.shp,GH.mask),LH.shp, filename="~/GIS_data/Hunter/mask files/LH.mask.tif",format="GTiff",overwrite=T)
+
+# UH administrative boundary bounded by HCCREMS AoI
+  UH.shp <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/Upper Hunter Strategic Assessment Review/AoI/UHSA_StudyArea_within_HCCREMS.shp",proj4=GDA94)
+    UH.shp <- spTransform(UH.shp,GDA94.56)
+  
+# create LH mask, snapping to the GH mask
+  UH.mask <- crop(rasterize(UH.shp,GH.mask,value=1),UH.shp, filename="~/GIS_data/Hunter/mask files/UH_HCCREMS.mask.tif",format="GTiff",overwrite=T)
+
+```
+
+The clipping masks are based on remnant vegetation after standardising the layer for all other data layers included in the Maxent models.  This removes areas where data may be missing in any layer.  
+* Note that this means the `standardise raster files for spatial analyses_mark2.Rmd` may need to be run again before creating the clipping layers if any of the environmental layers change
+
+```{r create clipping masks}
+# LH_LZN_Existing_Urban_Areas_OEH_Revised
+  LH.existing.urban <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From OEH/Raw data for RGP report/LH_LZN_Existing_Urban_Areas_OEH_Revised.shp")
+  LH.exurban.mask <- mask(rasterize(LH.existing.urban,LH.mask,field=0,background=1),LH.mask)
+    LH.exurban.mask[LH.exurban.mask==0] <- NA
+
+
+# Greater Hunter clipping mask
+  GH.veg <- raster("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/standardised_rasters/final_vegetation.asc",crs=GDA94.56)
+    GH.veg[!is.na(GH.veg)] <- 1
+  writeRaster(GH.veg,filename="~/GIS_data/Hunter/mask files/GH.clipping.mask.tif",format="GTiff",overwrite=T)
+
+# LH clipping mask
+  LH.veg <- mask(crop(GH.veg,LH.mask),LH.exurban.mask,filename="~/GIS_data/Hunter/mask files/LH.clipping.mask.tif",format="GTiff",overwrite=T)
+
+# UH clipping mask
+UH.veg <- mask(crop(GH.veg,UH.mask),UH.mask,filename="~/GIS_data/Hunter/mask files/UH_HCCREMS.clipping.mask.tif",format="GTiff",overwrite=T)
+
+```
+
+
+*This file was last updated on 11 March 2014 and last run on `r format(Sys.time(), "%d %B %Y")`.*

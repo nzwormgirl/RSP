@@ -1,0 +1,110 @@
+My attempt at Neighbourhood Analysis in R
+========================================================
+
+I want to calculate the percentage of cells that contain a particular type of habitat within a given radius based on the Greater Hunter Vegetation Map.  This is my attempt at doing that.
+
+The plan is to:  
+1. create presence/absence rasters for each of the vegetation groups we are interested in  
+2. calculate the sum of cells within a given radius  
+3. recalculate this as a percentage  
+
+The original data will need to be exported from the geodatabase as shapefiles and/or rasters before analysis.  
+
+The following functions set up the circular filter window `make_circ_filter`, turn a raster in to presence-absence based on a threshold `presence.absence` and calculate the percentage cover within a given window `percent.cover`.  `make_circ_filter` uses code from [Michael Scroggie](http://scrogster.wordpress.com/2012/10/05/applying-a-circular-moving-window-filter-to-raster-data-in-r/) and requires a cell resolution and radius that is a multiple of the resolution. 
+
+
+```{r chunkFunctions, warning=FALSE,message=FALSE}
+rm(list=ls())
+
+library(raster)
+library(rgdal)
+
+#function to make a circular weights matrix of given radius and resolution
+#NB radius must be an even multiple of res!
+make_circ_filter<-function(radius, res){
+  require(raster)
+  circ_filter<-matrix(NA, nrow=1+(2*radius/res), ncol=1+(2*radius/res))
+  dimnames(circ_filter)[[1]]<-seq(-radius, radius, by=res)
+  dimnames(circ_filter)[[2]]<-seq(-radius, radius, by=res)
+  sweeper<-function(mat){
+    for(row in 1:nrow(mat)){
+      for(col in 1:ncol(mat)){
+        dist<-sqrt((as.numeric(dimnames(mat)[[1]])[row])^2 +
+          (as.numeric(dimnames(mat)[[1]])[col])^2)
+        if(dist<=radius) {mat[row, col]<-1}
+      }
+    }
+    return(mat)
+  }
+out<-sweeper(circ_filter)
+return(out)
+}
+
+# function to sum the values in the circular filter and divides by the number of cells 
+##(removing all cells with NA values)
+percent.cover <- function(x){ sum(x,na.rm=T)/sum(cf, na.rm=T)*100}
+
+# function to convert a raster to presence-absence data based on a threshold
+  # set threshold to zero to create a mask of the area
+presence.absence <- function(x) { x[x<threshold] <- 0
+                     x[x>=threshold] <- 1
+                     return(x) }
+
+```
+
+```{r Analysis_function, message=FALSE}
+
+# open the selected sample file
+  generate.pc.ascii <- function (file.name, mask,sample.raster) {
+#     sample.raster <- raster(filename)
+    
+    cat("\n","Loaded",as.character(file.name))
+    
+    sample.raster <- resample(sample.raster,mask, method="bilinear")
+
+  # calculate the percentage cover within the circular filter
+    cat("\n","Calculating % cover of",as.character(file.name)," within",radius,"m radius")
+    r_filt <- mask(focal(sample.raster, w=cf, fun=percent.cover),mask)
+  
+    par(mfrow=c(1,2))
+    plot(sample.raster, main=file.name, axes=F) #original data
+    plot(r_filt, main=paste0(radius,"m ",file.name), axes=F) #filtered data
+    
+    file.name <- gsub(" ","_",file.name)
+  
+    writeRaster(r_filt, paste0("~/GIS_data/Hunter/mask files/",file.name,".",radius,".tif"), overwrite=TRUE)
+    cat("\n","Saved",paste0("~/GIS_data/Hunter/mask files/",file.name,radius,".tif"),"\n","\n")
+  
+  return(r_filt)
+  
+  gc()
+  }
+```
+
+
+```{r create patch size raster}
+  GH.mask <- raster("~/GIS_data/Hunter/mask files/GH.mask.tif")
+    GH.mask[!is.na(GH.mask)] <- 1
+
+  GH.clipping.mask <- raster("~/GIS_data/Hunter/mask files/GH.clipping.mask.tif")
+    GH.clipping.mask[is.na(GH.clipping.mask)] <- 0
+    GH.clipping.mask <- mask(GH.clipping.mask,GH.mask)
+
+  resolution <- xres(GH.mask)
+
+## Generate ascii files with percentage cover within 500 m radius
+  radii <- resolution*seq(2,5,by=1)
+
+
+for(i in seq(radii)){
+  # set the circular filter
+    radius <- radii[i]  
+    cf<-make_circ_filter(radius, resolution)
+      
+    assign(paste0("patch.size.",radius), generate.pc.ascii("GH_patch.size",GH.mask,GH.clipping.mask))
+  }
+
+```
+
+
+*This file was last updated on file.info("create patch size rasters.Rmd") and last run on `r format(Sys.time(), "%d %B %Y")`.*

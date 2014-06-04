@@ -1,0 +1,70 @@
+Merge HCCREMS weights with master species list
+========================================================
+
+
+
+```{r setup}
+rm(list=ls())
+
+# import HCCREMS weights
+  weights <- read.csv("~/GIS_data/Hunter/species point data/HCCREMS fauna weightings.csv")
+
+# import protected species master list
+  protected.species <- read.csv("//654cw-20990/Amy/GIS_data/Hunter/species point data/IBRA threatened species list.csv")
+    protected.species$rank <- NA
+    protected.species$weight <- NA
+
+# identify which species have weights
+  species <- weights$Scientific.Name[weights$Scientific.Name %in% protected.species$Scientific.Name]
+
+# assign weights
+  for(i in seq(species)){
+    # relative rank assigned by HCCREMS where 1 is most important and 7 not very important
+    protected.species$rank[grepl(species[i],protected.species$Scientific.Name)] <- weights$weighting[grepl(species[i],weights$Scientific.Name)]
+    # relative weight assigned by NERP where 7 is important and 1 is not very important
+    protected.species$weight[grepl(species[i],protected.species$Scientific.Name)] <- (weights$weighting[grepl(species[i],weights$Scientific.Name)] - 8)*-1
+    
+  }
+# export master list
+  write.csv(protected.species,"//654cw-20990/Amy/GIS_data/Hunter/species point data/IBRA threatened species list.csv",row.names=F)
+```
+
+```{r export lists for LH report}
+
+# extract species with records in LH
+  LH.species <- protected.species[!is.na(protected.species$lower.hunter),]
+    LH.species <- LH.species[,c("Taxa","Scientific.Name","Common.Name","mnes","Comm.status","NSW.status","greater.hunter","lower.hunter","LH.sdm","rank")]
+    LH.species$mnes <- gsub("FALSE","",LH.species$mnes)
+    LH.species$mnes <- gsub("TRUE","Y",LH.species$mnes)
+    LH.species$points <- LH.species$lower.hunter
+    LH.species$points[grepl("SDM",LH.species$LH.sdm)] <- paste0(LH.species$lower.hunter[grepl("SDM",LH.species$LH.sdm)]," (",LH.species$greater.hunter[grepl("SDM",LH.species$LH.sdm)],")")
+#     LH.species$LH.sdm <- gsub("SDM","Y",LH.species$LH.sdm)
+#     LH.species$LH.sdm <- gsub("SSI","N",LH.species$LH.sdm)
+#     LH.species$LH.sdm <- gsub(NA,"",LH.species$LH.sdm)
+#     LH.species$rank <- gsub(NA,"",LH.species$rank)
+
+taxa <- unique(LH.species$Taxa)
+
+  for(i in seq(taxa)){
+    assign(as.character(taxa[i]),LH.species[LH.species$Taxa==taxa[i],c("Scientific.Name","Common.Name","mnes","Comm.status","NSW.status","points","LH.sdm","rank")])
+    write.csv(get(as.character(taxa[i])),paste0("~/GIS_data/Hunter/species point data/",taxa[i]," data for LH DotE appendices.csv"),row.names=FALSE)
+    
+  }
+
+```
+
+
+```{r tec list for report}
+  tec.data <- read.csv("//654cw-20990/Amy/GIS_data/Hunter/species point data/GreaterHunter_DRAFT_100812 (2).csv")
+    tec.data <- tec.data[!duplicated(tec.data$TEC_Amy),c("TEC_Amy","MUcodes","points", "LH.points","LH.sdm")]
+    tec.data <- tec.data[!is.na(tec.data$LH.points),]
+    tec.data$TEC_Amy <- gsub("_"," ",tec.data$TEC_Amy)
+    tec.data$records <- tec.data$LH.points
+      tec.data$records[grepl("SDM",tec.data$LH.sdm)] <- paste0(tec.data$LH.points[grepl("SDM",tec.data$LH.sdm)]," (",tec.data$points[grepl("SDM",tec.data$LH.sdm)],")")
+    tec.data <- tec.data[order(tec.data$TEC_Amy),]
+
+  write.csv(tec.data[order(tec.data$TEC_Amy),c("TEC_Amy","MUcodes","records","LH.sdm")],paste0("~/GIS_data/Hunter/species point data/tec data for LH DotE appendices.csv"),row.names=FALSE)
+
+# plus the federal tecs
+
+```

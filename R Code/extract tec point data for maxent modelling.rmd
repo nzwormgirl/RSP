@@ -1,0 +1,134 @@
+Extract HCCREMS TEC data from GHM survey data
+========================================================
+
+
+
+```{r import data}
+  rm(list=ls())
+  
+  packages(maptools)
+  packages(raster)
+
+  GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+  output.directory <- "~/GIS_data/Hunter/vegetation/GHM_MUcodes/"
+
+# import HCCREMS spreadsheet with MU codes of TECs
+  TEC.data <- read.csv("~/GIS_data/Hunter/All data from harddrive/From HCCREMS/TEC_data/GreaterHunter_DRAFT_100812 (2).csv")
+
+# import GHM_v4 survey points
+  ghm.survey <- readShapePoints("~/GIS_data/Hunter/vegetation/GHM_v4/GHM_v4_Surveus_June2012",proj4string=GDA94.56)
+
+# greater hunter mask
+  GH.mask <- raster("~/GIS_data/Hunter/mask files/GH.mask.tif")
+    GH.mask[!is.na(GH.mask)] <- 0
+
+# greater hunter clipping mask
+  GH.clipping.mask <- raster("~/GIS_data/Hunter/mask files/GH.clipping.mask.tif")
+    GH.clipping.mask[!is.na(GH.clipping.mask)] <- 0
+
+```
+
+```{r presence absence raster}
+  presence.absence.raster <- function (mask.raster,species.data,raster.label="") {
+      #set the cells that contain points to 1
+    speciesRaster <- rasterize(species.data,mask.raster,field=1)
+      speciesRaster <- merge(speciesRaster,mask.raster)
+      #label the raster
+      names(speciesRaster) <- as.character(raster.label)
+     writeRaster(speciesRaster,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/greater hunter/",raster.label,"_GH.tif"), format="GTiff",overwrite=T)
+    cat("Converted",as.character(raster.label),"to raster","\n")
+  }
+
+```
+
+```{r create TEC names}
+
+  TEC.data$TEC_Amy <- TEC.data$TECComments
+    TEC.data$TEC_Amy <- gsub("Forms part of the Endangered Ecological Community ","",TEC.data$TEC_Amy)
+    TEC.data$TEC_Amy <- gsub("Equivalent to the Commonwealth Threatened Ecological Community ","",TEC.data$TEC_Amy)
+    TEC.data$TEC_Amy <- gsub("Equivalent to Endangered Ecological Community ","",TEC.data$TEC_Amy)
+    TEC.data$TEC_Amy <- gsub("Equivalent to the Endangered Ecological Community ","",TEC.data$TEC_Amy)
+    TEC.data$TEC_Amy <- gsub("This community may form part of the Endangered Ecological Community ","",TEC.data$TEC_Amy)
+    TEC.data$TEC_Amy <- gsub("This community forms part of the Endangered Ecological Community ","",TEC.data$TEC_Amy)
+    TEC.data$TEC_Amy <- gsub("This community may form part of; the Endangered Ecological Community ","",TEC.data$TEC_Amy)
+    TEC.data$TEC_Amy <- gsub("Where it occurs on coastal floodplains this community forms part of the Endangered Ecological Community ","",TEC.data$TEC_Amy)
+        TEC.data$TEC_Amy <- gsub("Includes ","",TEC.data$TEC_Amy)
+
+    TEC.data$TEC_Amy <- gsub("[[:punct:]]","",TEC.data$TEC_Amy)
+    TEC.data$TEC_Amy <- gsub(" ","_",TEC.data$TEC_Amy)
+
+# remove MU232 from list as it doesn't appear in either dataset
+  #TEC.data <- TEC.data[TEC.data$MapUnitID!="MU232",]
+    
+
+```
+
+```{r extract and export tecs}
+
+# create list of tecs
+  tecs <- unique(TEC.data$TEC_Amy)
+
+# Add column with number of survey points
+  TEC.data$points <- NA
+  TEC.data$MUcodes <- NA
+
+# Create empty maxent datafile
+  maxent.data <- d(tec=NULL,easting=NULL,northing=NULL)
+  ssi.data <- d(tec=NULL,easting=NULL,northing=NULL)
+
+# create rasters for each tec from GHM & PB data
+  for (t in seq(tecs)){
+    cat("Extracting", tecs[t],"\n")
+    mu.codes <- TEC.data$MapUnitID[TEC.data$TEC_Amy==tecs[t]]
+    TEC.data$MUcodes[TEC.data$TEC_Amy==tecs[t]] <- paste(mu.codes, collapse = ', ')
+    
+      cat(" MU codes = ", as.character(mu.codes),"\n") 
+    
+    tec.pts <- ghm.survey[ghm.survey$GHM_Type %in% mu.codes,]
+      
+    if(nrow(tec.pts)>0) {
+      tec.pts <- as.data.frame(tec.pts)
+       point <- which(!is.na(extract(GH.clipping.mask,tec.pts[,c("x","y")]))==TRUE)
+        tec.pts <- tec.pts[point,]
+      
+      TEC.data$points[TEC.data$TEC_Amy==tecs[t]] <- nrow(tec.pts)
+        
+      plot(GH.clipping.mask,axes=F,box=F,legend=F,main=tecs[t])
+        points(tec.pts)
+      
+      if(nrow(tec.pts) >= 20){
+        output.maxent <- d(tec=tecs[t],easting=tec.pts$x, northing=tec.pts$y)
+        maxent.data <- rbind(maxent.data,output.maxent)
+        
+      } else if(nrow(tec.pts) < 20 & nrow(tec.pts) > 0){
+          
+          output.ssi <- d(tec=tecs[t],easting=tec.pts$x, northing=tec.pts$y)
+          ssi.data <- rbind(ssi.data,output.ssi)
+          
+          # export as text file
+            write.table(d(output.ssi[,c("easting","northing")],1,0),paste0("~/GIS_data/Hunter/zonation/greater hunter/ssi_files/",tecs[t],"_GH.txt"),col.names=F,row.names=F)
+          # export as tif 
+            presence.absence.raster(GH.clipping.mask,output.ssi[,c("easting","northing")], raster.label=tecs[t])
+            
+        }
+    } else cat(" No records for",tecs[t],"\n")
+    
+    try(rm(mu.codes,tec.pts,point,output.maxent,output.ssi),silent=T)     
+  }
+
+cat("There are",length(unique(maxent.data$tec)),"tecs for maxent and", length(unique(ssi.data$tec)), "tecs for inclusion as SSI")
+
+write.csv(maxent.data,"~/GIS_data/Hunter/maxent_files/species_data/maxent.data_tecs.csv",row.names=F)
+
+write.csv(TEC.data,"~/GIS_data/Hunter/All data from harddrive/From HCCREMS/TEC_data/GreaterHunter_DRAFT_100812 (2).csv", row.names=F)
+
+```
+
+
+Things to think about:
+* should we include the vegetation data?
+* do I need a bias file?  If so, how do I make this?
+* should these be bioclimatic only?
+* Theoretically the results should be mutually-exclusive - how do we deal with this?

@@ -1,0 +1,178 @@
+Prepare species layers provided by SEWPAC for inclusion in Zonation
+========================================================
+
+This script takes the [four species datasets provided by SEWPAC](file:///C:/Users/awhitehead/Documents/GIS_data/Hunter/All data from harddrive/From DO/LH_DoE_research) and converts them to a format that can be used in Zonation.  The species are:
+* Swift parrot
+* Regent Honeyeater
+* Koala
+* Grey-headed flying fox
+
+```{r load_data}
+rm(list=ls())
+packages(raster)
+packages(rgdal)
+packages(maptools)
+packages(rgeos)
+
+  zonation.dir <- c("~/GIS_data/Hunter/zonation/lower hunter/")
+
+  GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+  LH.mask <- raster("~/GIS_data/Hunter/mask files/LH.mask.tif")
+  LH.mask[!is.na(LH.mask)] <- 0
+
+  LH.clipping.mask <- raster("~/GIS_data/Hunter/mask files/LH.clipping.mask.tif")
+    # set the background cells in the raster to 0
+    LH.clipping.mask[!is.na(LH.clipping.mask)] <- 0
+
+
+convert.to.tif <- function (r, rescale=1) {
+  if(projection(r) != projection(LH.mask)){
+    r <- projectRaster(r,LH.mask)
+  }
+  
+  r <- mask(resample(r, LH.mask),LH.clipping.mask)
+  
+  species <- names(r)
+  if(rescale>1) r <- round(r*rescale,0)
+  
+  plot(r,main=species)
+  
+  cat("converted",species, "to tif","\n")
+  writeRaster(r,paste0(zonation.dir,species,"_LH.tif"), overwrite=T, format="GTiff")
+  return(r)
+  
+}
+```
+
+```{r regent honeyeater}
+
+rh <- raster("~/GIS_data/Hunter/All data from harddrive/From DO/LH_DoE_research/SEWPAC/SPRH/data/LHPP_SPWA&REHO_project_data/REHO Maxent/Regent_Honeyeater.asc")
+  # fill gaps in original raster
+  rh[is.na(rh)] <- 0
+
+ rh_lh <- convert.to.tif(rh, rescale=1000)
+
+```
+
+```{r swift parrot}
+  swp <- raster("~/GIS_data/Hunter/All data from harddrive/From DO/LH_DoE_research/SEWPAC/SPRH/data/LHPP_SPWA&REHO_project_data/SWPA Maxent/Swift_Parrot.asc")
+  swp[is.na(swp)] <- 0
+  swp_lh <- convert.to.tif(swp, rescale=1000)
+
+```
+
+```{r koala}
+ koala <- raster("~/GIS_data/Hunter/All data from harddrive/From DO/LH_DoE_research/SEWPAC/Koala/data/commondata/data1/rawhabval6")
+  koala[is.na(koala)] <- 0
+  names(koala) <- "koala_rawhabval6"
+
+  koala_lh <- convert.to.tif(koala)
+
+```
+
+Only run the ghff if absolutely necessary as it takes ages!
+```{r grey-headed flying fox}
+  
+## convert ghff foraging habitat to raster  
+ghff_foraging <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From DO/LH_DoE_research/SEWPAC/GHFF/data/ForagingRanks_Eby_GeoLINK_08012013.shp", proj4=GDA94.56)
+
+  #flip the rank scaling so that 4 has the highest value
+  ghff_foraging$final_rank <- (ghff_foraging$final_rank*-1)+5
+    ghff_foraging$final_rank[ghff_foraging$final_rank==5] <- 0.01
+
+  ghff_for <- rasterize(ghff_foraging,LH.mask, field="final_rank")
+    ghff_for[is.na(ghff_for)] <- 0
+
+  names(ghff_for) <- "ghff_foraging"
+
+  ghff_for_lh <- convert.to.tif(ghff_for)
+
+
+## convert ghff roosting habitat camps to raster
+  ghff_roosting <- readShapePoints("~/GIS_data/Hunter/All data from harddrive/From DO/LH_DoE_research/SEWPAC/GHFF/data/LH_GHFFcamps_GeoLINK_Eby_05042013.shp", proj4=GDA94.56)
+  
+  # add the estimated habitat availability for each camp from Table 5.1 from report
+  ghff_roosting$area_ha <- c(6,10,0.7,10,10,10,10,10,10,0.25,0.25,10,10,10,10,2,10,10,4,4)
+
+  # buffer each camp to give the approximate area in hectares as specified in the report (Table 5.1)
+  ghff_roost_buff <- gBuffer(ghff_roosting,byid=TRUE,id=ghff_roosting$Name, sqrt(ghff_roosting$area_ha*10000 / pi))
+
+  ghff_roost_rast <- rasterize(ghff_roost_buff,LH.mask,field=1)
+
+  names(ghff_roost_rast) <- "ghff_roosting"
+  ghff_roost_rast[is.na(ghff_roost_rast)] <- 0
+
+  ghff_roost_lh <- convert.to.tif(ghff_roost_rast)
+
+```
+
+Ecological Communities
+
+```{r convert to raster function}
+create.raster <- function (s, mask.raster, raster.label, value=1, transform=FALSE) {
+    
+   if(transform==TRUE) {
+     proj4string(s) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+    s <- spTransform(s, CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+     }
+    
+  r <- rasterize(s,mask.raster)
+    r[!is.na(r)] <- value
+    r <- mask(merge(r,mask.raster),mask.raster, filename=paste0(zonation.dir,raster.label), format="GTiff", overwrite=T)
+    names(r) <- rep(raster.label,length(names(r)))
+    
+    plot(r, main=raster.label,legend=F,axes=F)
+
+    return(r)
+  }
+
+```
+
+```{r saltmarsh}
+
+saltmarsh <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From DO/LH_DoE_research/SEWPAC/EC/data/LH_Nominated_EC_Saltmarsh.shp", proj4=GDA94)
+
+saltmarsh.raster <- create.raster(saltmarsh,LH.clipping.mask,raster.label="Nominated_EC_Saltmarsh_LH",transform=T)
+
+```
+
+```{r hinterland}
+
+hinterland <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From DO/LH_DoE_research/SEWPAC/EC/data/LH_Nominated_EC_Hinterland.shp", proj4=GDA94)
+
+hinterland.raster <- create.raster(hinterland,LH.clipping.mask,raster.label="Nominated_EC_Hinterland_LH",transform=T)
+
+```
+
+```{r lowland}
+
+lowland <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From DO/LH_DoE_research/SEWPAC/EC/data/LH_Nominated_EC_Lowland.shp", proj4=GDA94)
+
+lowland.raster <- create.raster(lowland,LH.clipping.mask,raster.label="Nominated_EC_Lowland_LH",transform=T)
+
+```
+
+```{r Littoral}
+
+littoral <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From DO/LH_DoE_research/SEWPAC/EC/data/LH_Nominated_EC_Littoral.shp", proj4=GDA94)
+
+littoral.raster <- create.raster(littoral,LH.clipping.mask,raster.label="Nominated_EC_Littoral_LH",transform=T)
+
+```
+
+```{r remnant}
+
+remnant <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From DO/LH_DoE_research/SEWPAC/EC/data/LH_Nominated_EC_Remnant.shp", proj4=GDA94)
+
+remnant1.raster <- create.raster(remnant[grepl("Yes, map unit specified in nomination",remnant$IN_NOMINAT),],LH.clipping.mask,raster.label="remnant1",transform=T, value=1)
+
+remnant05.raster <- create.raster(remnant[grepl("No, but consistent with community definiton",remnant$IN_NOMINAT),],LH.clipping.mask,raster.label="remnant05",transform=T, value=0.5)
+
+remnant.raster <- max(stack(remnant1.raster,remnant05.raster))
+names(remnant.raster) <- "Nominated_EC_Remnant"
+
+convert.to.tif(remnant.raster)
+
+```

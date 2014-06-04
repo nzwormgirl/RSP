@@ -1,0 +1,323 @@
+
+
+```{r set up}
+rm(list=ls())
+packages(raster)
+packages(maptools)
+packages(colorRamps)
+packages(fields)
+
+  GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+# computer
+computer <- "~"
+#computer <- "//654cw-20990/Amy"
+
+# define paths for input and output files
+input_path <- paste0(computer,'/GIS_data/Hunter/zonation/lower hunter/Output/')
+output_path <- '~/GIS_data/Hunter/zonation/lower hunter/'
+
+# import biodiversity feature names
+  names <- as.vector(read.table(paste0(computer,'/GIS_data/Hunter/zonation/lower hunter/lh.zonation.spp'), header=F, sep='\t')[,6])
+  names <- gsub('_LH.tif', '', names)
+
+# date of the output files
+  analysis.date <- '280514' # remember to update to correct date
+
+
+```
+
+
+```{r import curve data}
+# LH General impact assessment
+
+# get names of Zonation curves-files (you can also do this manually)
+files <- grep(paste0(analysis.date,'.curves.txt'), list.files(input_path), value=T) 
+  files <- files[files!=paste0("output_LH_",analysis.date,".curves.txt")] # remove baseline scenario
+
+# check for species that have zero observations at the start of the prioritisation
+  baseline.curves <- read.table(paste0(input_path,"output_LH_",analysis.date,".curves.txt"), skip=1, header=F, sep='')
+      colnames(baseline.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
+  zero.obs <- baseline.curves[1,8:ncol(baseline.curves)]
+    names(zero.obs[which(zero.obs==0)])
+
+# when does the first species go extinct in the baseline scenario?
+  extinct <- baseline.curves[baseline.curves$min_prop_rem==0,][1,]
+    cat("First species goes extinct at step",row.names(extinct), "with",extinct$Prop_landscape_lost*100, "% removed","\n")
+   names(extinct[which(extinct==0)])
+  
+# % species distributions in top fractions
+  top5.sp <- baseline.curves$ave_prop_rem[baseline.curves$Prop_landscape_lost>=0.95][1]
+  top10.sp <- baseline.curves$ave_prop_rem[baseline.curves$Prop_landscape_lost>=0.9][1]
+  top30.sp <- baseline.curves$ave_prop_rem[baseline.curves$Prop_landscape_lost>=0.7][1]
+
+```
+
+```{r identify cleared area}
+# how much area is cleared in each impact scenario?
+
+# import scenario rasters
+  
+  if(analysis.date=="160414") {
+    scenarios <- lapply(dir('//654cw-20990/Heini/RSP/HV/',pattern=".tif",full.names=T),raster)
+    
+    cleared_area <- data.frame(scenario=rep(NA,length(scenarios)),cleared=NA,hectares=NA,total=NA)
+    
+    for(i in 1:length(scenarios)){
+        r <- scenarios[[i]]
+        cleared_area$scenario[i] <- names(r)
+        cleared_area$cleared[i] <- length(r[r!=cellStats(r,max)])/length(r[!is.na(r)])
+        cleared_area$hectares[i] <- length(r[r!=cellStats(r,max)])
+        # check that all scenarios files have the same number of cells
+        cleared_area$total[i] <- length(r[!is.na(r)])
+      }
+    
+  } else {
+      if(computer == "~") {
+        scenarios <- stack(dir("~/GIS_data/Hunter/All data from harddrive/From OEH/Raw data for RGP report",pattern=".tif$",full.names=T)) 
+      } else {
+        scenarios <- stack(dir('//654cw-20990//GIS_data/Hunter/zonation/lower hunter/RGS_scenarios/',pattern=".tif$",full.names=T))}
+     
+    cleared_area <- data.frame(scenario=names(scenarios),cleared=NA,hectares=NA,total=NA)  
+    
+      for(i in 1:nlayers(scenarios)){
+        r <- scenarios[[i]]
+        cleared_area
+        cleared_area$cleared[i] <- length(r[r!=cellStats(r,max)])/length(r[!is.na(r)]) 
+        cleared_area$hectares[i] <- length(r[r!=cellStats(r,max)])
+        cleared_area$total[i] <- length(r[!is.na(r)])
+      }
+     
+    }
+
+```
+
+```{r produce baseline priority map}
+
+zonation_priority <- raster(paste0(input_path,"output_LH_",analysis.date,".rank.asc"))
+
+LH.mask <- raster("~/GIS_Data/Hunter/mask files/LH.mask.tif",crs=GDA94.56)
+LH.clipping.mask <- raster("~/GIS_Data/Hunter/mask files/LH.clipping.mask.tif",crs=GDA94.56)
+LH.shp <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/LHRS_Study_Area.shp", proj4=GDA94.56)
+
+IsBecomes.zonation <- matrix(c(0,0.50,1, 0.50,0.70,2,0.70,0.85,3,0.85,0.90,4,0.90,0.95,5,0.95,1.00,6), ncol=3, byrow=TRUE)
+  
+reclassified.zonation <- reclassify(zonation_priority,IsBecomes.zonation)
+
+leg.labels <- c("top 5%","top 10%","top 15%","top 30%","top 50%","rest")
+breaks <- c(0,0.2,0.5,0.75,0.9,0.95,0.98,1)
+colours <- c("black","dark blue","blue","yellow","magenta","dark red", "red")
+
+png(paste0(input_path,"zonation_priority.png"),height=7,width=15,units="cm",res=300, bg="transparent")
+par(mar=c(0,0.25,0,0), oma=c(0,0,0,0))
+plot(LH.mask,col="whitesmoke",legend=F,box=F,axes=F,zlim=c(1,7))
+  plot(zonation_priority,col=blue2red(100),add=T,legend=F)
+  plot(LH.shp, add=T, lwd=0.5)
+  image.plot(legend.only=TRUE,smallplot=c(.85, .87, .35, .55),legend.width=0.75,legend.shrink=0.25, zlim= c(0,1), nlevel=100, col=blue2red(100),axis.args=list(at=c(0,1), labels=c("Low","High"), cex.axis=0.6),legend.args=list(text='Conservation priority', side=4, font=2, line=2.5, cex=0.7)) 
+  scalebar(10000,type="line",divs=3,below="",cex=0.6,label=c("","10km",""))
+dev.off()
+
+png(paste0(input_path,"classified_zonation_priority.png"),height=7,width=15,units="cm",res=300, bg="transparent")
+par(mar=c(0,0.25,0,0), oma=c(0,0,0,0))
+plot(LH.mask,col="whitesmoke",legend=F,box=F,axes=F,zlim=c(1,7))
+  plot(reclassified.zonation,col=blue2red(7),add=T,legend=F)
+  plot(LH.shp, add=T, lwd=0.5)
+  legend("bottomright",leg.labels,col=rev(blue2red(7)),pch=15,bty="n",title="Conservation priority",cex=0.7)
+  scalebar(10000,type="line",divs=3,below="",cex=0.6,label=c("","10km",""))
+dev.off()
+
+top.30 <- zonation_priority
+  top.30[top.30 < 0.7] <-NA
+  top.30[!is.na(top.30)] <- 1
+
+png(paste0(input_path,"top30_raster.png"),height=7,width=15,units="cm",res=300, bg="transparent")
+par(mar=c(0,0.25,0,0), oma=c(0,0,0,0))
+plot(LH.mask,col="whitesmoke",legend=F,box=F,axes=F)
+  plot(top.30,col="brown",legend=F,add=T)
+  plot(LH.shp, add=T, lwd=0.5)
+  scalebar(10000,type="line",divs=3,below="",cex=0.6,label=c("","10km",""))
+dev.off()
+
+
+png(paste0(input_path,"priority_top30_raster.png"),height=14,width=15,units="cm",res=300, bg="transparent")
+par(mar=c(0,0.25,0,0), oma=c(0,0,0,0),mfrow=c(2,1))
+plot(LH.mask,col="whitesmoke",legend=F,box=F,axes=F,zlim=c(1,7))
+  plot(zonation_priority,col=blue2red(100),add=T,legend=F)
+  plot(LH.shp, add=T, lwd=0.5)
+  image.plot(legend.only=TRUE,smallplot=c(.85, .87, .35, .55),legend.width=0.75,legend.shrink=0.25, zlim= c(0,1), nlevel=100, col=blue2red(100),axis.args=list(at=c(0,1), labels=c("Low","High"), cex.axis=0.6),legend.args=list(text='Conservation priority', side=4, font=2, line=2.5, cex=0.7)) 
+  mtext("a)",side=3,line=-1,adj=0,cex=0.8)
+  scalebar(10000,type="line",divs=3,below="",cex=0.6,label=c("","10km",""))
+
+plot(LH.mask,col="whitesmoke",legend=F,box=F,axes=F)
+  plot(top.30,col="brown",legend=F,add=T)
+  plot(LH.shp, add=T, lwd=0.5)
+  mtext("b)",side=3,line=-1,adj=0,cex=0.8)
+dev.off()
+
+```
+
+```{r make scenario maps}
+
+development <- c("LH_lep","LH_opt12","LH_opt3","LH_lep_opt12","LH_lep_opt3")
+  dev.label <- c("1) LEPs", "2) Option 1&2", "3) Option 3", "4) LEPs & Option 1&2", "5) LEPs & Option 3")
+
+LH_opt12_EA <- scenarios[[which(names(scenarios) %in% "LH_opt12_EA")]]
+  LH_opt12_EA[LH_opt12_EA!=1] <- NA
+
+
+png(paste0(input_path,"development_scenarios.png"),height=12,width=27,units="cm",res=300, bg="transparent")
+  par(mar=c(0,0.25,0,0), oma=c(0,0,0,0),mfrow=c(2,3))
+  
+  for (i in seq(development)){
+    r <- scenarios[[which(names(scenarios) %in% development[i]==TRUE)]]
+      r[r==cellStats(r,max)] <- NA    
+    
+    plot(LH.clipping.mask,col="grey90",legend=F,box=F,axes=F)
+      plot(r,col="black",add=T,legend=F)
+      plot(LH.shp, add=T, lwd=0.5)
+      if(grepl("LH_opt12|LH_lep_opt12",development[i])==TRUE) plot(LH_opt12_EA,col="blue",add=T,legend=F)
+    mtext(dev.label[i],side=3,line=-1,adj=0,cex=0.8)
+  }
+dev.off()
+
+```
+
+```{r assess impacts}
+# create the output table
+  loss.table <- as.data.frame(matrix(NA, length(files), 14))
+    dim(loss.table)
+
+# match scenario with mask layer
+  ## this is a bit of a hack as I didn't give them the same labels - fail
+  ## need to make sure that these get updated
+  loss.table[,1] <- gsub('.curves.txt', '', files)
+    loss.table$mask.layer <- gsub(paste0("_",analysis.date),"",gsub("output_","",loss.table[,1]))
+  
+  #c("LH_GA10","LH_GA10.step", "LH_LEPs","LH_LEP_Opt12","LH_LEP_Opt3","LH_Option_1_2","LH_Option_3")
+    #loss.table$mask.layer <- c("lep_plans_mask_v3","Important_Agricultural_Lands_mask","All_UIA_mask","DPI_10GrowthAreas_mask","DPI_10GrowthAreas_step_mask","Express_Highway_noBuffer_mask","Mine_Leases.Appl_mask","UIA_and_PA_mask","")
+
+# calculating impact numbers for each scenario
+for (h in 1:length(files)){
+  cat("calculating impact for",loss.table[h,1],"\n")
+# Name of original curves file
+  input <- paste0(input_path, files[h])
+
+try({
+  # Upload the curves file
+    curves <- read.table(input, skip=1, header=F, sep='')
+      colnames(curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
+    
+  # extract cleared area from clipped scenario
+    developed <- cleared_area$cleared[cleared_area$scenario==loss.table$mask.layer[h]]
+    cleared <- cleared_area$cleared[cleared_area$scenario==paste0(loss.table$mask.layer[h],"_clipped")]
+    
+  # identify curve data associated with cleared area
+    a <- curves[which(curves$Prop_landscape_lost>cleared)[1],] # first line greater than cleared area - conservative
+    #a <- curves[which.min(abs(curves$Prop_landscape_lost-cleared)),] # line closest in value to cleared area
+    
+    # calculate impacts
+    loss.table[h,2] <- round(developed*100,2)
+    loss.table[h,3] <- round(cleared*100,2)
+    loss.table[h,4] <- 100-(a[, 4]*100)
+    loss.table[h,5] <- 100-(a[, 3]*100)
+  
+    # subset a to just keep species distribution data
+    a <- a[,8:ncol(a)]
+    
+    loss.table[h,6] <- length(which(a == 0))
+    loss.table[h,7] <- paste(gsub("_"," ",colnames(a[which(a == 0)])), collapse=', ')
+    loss.table[h,8] <- length(which(a > 0 & a <= 0.1))
+    loss.table[h,9] <- paste(gsub("_"," ",colnames(a[which(a > 0 & a <= 0.1)])), collapse=', ')
+    loss.table[h,10] <- length(which(a > 0.1 & a <= 0.25))
+    loss.table[h,11] <- paste(gsub("_"," ",colnames(a[which(a > 0.1 & a <= 0.25)])), collapse=', ')
+    loss.table[h,12] <- length(which(a > 0.25 & a <= 0.5))
+    
+    
+    loss.table[h,13] <- paste(gsub("_"," ",colnames(a[which(a > 0.25 & a <= 0.5)])), collapse=', ')
+    
+    # calculate conflict with top 30%
+    r <- scenarios[[which(names(scenarios) %in% loss.table[h,15]==TRUE)]]
+      r[r==cellStats(r,max)] <- NA
+      r[is.na(r)] <- 0
+      r <- sum(stack(top.30,r))
+  
+    loss.table[h,14] <- round(length(r[r>1])/length(r[!is.na(r)])*100,2)
+  
+    plot(curves$Prop_landscape_lost,curves$ave_prop_rem,type="l",main=loss.table[h,1])
+      lines(curves$Prop_landscape_lost,curves$min_prop_rem)
+      abline(v=cleared,col="red")
+  
+  })
+
+}
+
+  colnames(loss.table) <- c('Scenario', '%area_developed', '%_area_cleared', 'mean_loss(%)', 'max_loss(%)', '100%_loss_#', '100%_loss_sp', '90%_loss_#', '90%_loss_sp', '75%_loss_#', '75%_loss_sp', '50%_loss_#', '50%_loss_sp','%_conflict','mask.layer')
+
+```
+
+```{r link to horrenda table}
+trim <- function (x) gsub("^\\s+|\\s+$", "", x)
+
+# load horrenda table
+  protected.species <- read.csv(paste0(computer,"/GIS_data/Hunter/species point data/IBRA threatened species list.csv"))
+
+# at risk species
+  for(h in seq(files)){
+
+    for(j in c(7,9,11,13)){
+    
+      try({
+        sp <- strsplit(loss.table[h,j],",")
+          for(i in seq(sp[[1]])){
+            mnes <- ""
+            sdm <- ""
+            taxa <- ""
+            species <- trim(sp[[1]][i])
+            tryCatch({
+              if(protected.species$mnes[protected.species$Scientific.Name==species]==TRUE) mnes <- "MNES"
+              sdm <- protected.species$LH.sdm[protected.species$Scientific.Name==species]
+                if(is.na(sdm) & protected.species$lower.hunter[protected.species$Scientific.Name==species]<20) sdm <- "SSI"
+              taxa <- protected.species$Taxa[protected.species$Scientific.Name==species]
+                taxa <- gsub("\\b(\\w)","\\U\\1",gsub("s","",taxa), perl=TRUE)
+              sp[[1]][i] <- paste0(species," (",gsub("^,|$,","",(paste(mnes,sdm,taxa,sep=","))),")")
+              })
+          }
+        loss.table[h,j] <- paste(sp[[1]],collapse=", ")
+      })
+    }
+    
+  }
+
+ write.csv(loss.table, paste0(input_path, '/LH_Development plan impacts_',analysis.date,'.csv'), row.names=F)
+```
+
+
+
+
+```{r identify biodiversity features in runs}
+
+species <- gsub("_"," ",names)
+
+# number of features
+length(species)
+
+mnes.species <- species[species %in% protected.species$Scientific.Name[protected.species$mnes==TRUE]]
+  mnes.species <- append(mnes.species,c("Swift Parrot","Regent Honeyeater",species[grep("Nominated",species)]))
+
+birds <- species[species %in% protected.species$Scientific.Name[protected.species$Taxa=="birds"]]
+  birds <- append(birds,c("Swift Parrot","Regent Honeyeater"))
+
+amphibians <- species[species %in% protected.species$Scientific.Name[protected.species$Taxa=="amphibians"]]
+mammals <- species[species %in% protected.species$Scientific.Name[protected.species$Taxa=="mammals"]]
+plants <- species[species %in% protected.species$Scientific.Name[protected.species$Taxa=="plants"]]
+reptiles <- species[species %in% protected.species$Scientific.Name[protected.species$Taxa=="reptiles"]]
+tecs <- species[!species %in% protected.species$Scientific.Name]
+  tecs <- tecs[!tecs %in% c("ghff foraging","ghff roosting","koala rawhabval6","Regent Honeyeater","Swift Parrot")]
+sdm.species <- species[species %in% protected.species$Scientific.Name[protected.species$LH.sdm=="SDM"]]
+  
+
+cat("Total features:",length(names),"\n","MNES:",length(mnes.species),"\n", "amphibians:",length(amphibians),"\n","birds:",length(birds),"\n","mammals:",length(mammals),"\n","plants:",length(plants),"\n","reptiles:",length(reptiles),"\n","tecs:",length(tecs),"\n","SDM:",length(sdm.species)+7)
+
+```
+

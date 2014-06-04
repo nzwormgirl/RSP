@@ -1,0 +1,47 @@
+Merge Port MacQuarie polygon into GH clipping mask
+========================================================
+
+Merge the Port MacQuarie polygon into the existing greater hunter mask and export as a new mask raster file
+
+```{r}
+rm(list=ls())
+packages(raster)
+packages(rgdal)
+source("C:/Users/awhitehead/Dropbox/Random R code/shp2raster.R")
+
+# projections 
+  GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+
+port.mac.dir <- "~/GIS_data/Hunter/All data from harddrive/Port MacQuarie/"
+setwd(port.mac.dir)
+
+port.mac <- readOGR(dsn=".",layer="PMHC LGA boundary")
+
+gh.raster <- raster("~/GIS_data/Hunter/mask files/GH.mask.tif")
+  writeRaster(gh.raster, "~/GIS_data/Hunter/mask files/GH.mask_old.tif")
+  gh.raster <- extend(gh.raster,c(197142,497753.4,6282948,6557576))
+  gh.raster[!is.na(gh.raster)] <- 1
+  gh.raster[is.na(gh.raster)] <- 0
+
+  GH_PM <- shp2raster(port.mac,gh.raster,value=1,bkg=0,label="GH_PM",save=F,mask=F)
+    GH_PM <- sum(gh.raster,GH_PM)
+    GH_PM[GH_PM==0] <- NA
+    GH_PM[!is.na(GH_PM)] <- 0
+  writeRaster(GH_PM,"~/GIS_data/Hunter/mask files/GH.mask.tif",format="GTiff",overwrite=T)
+
+```
+
+```{r create individal council raster masks}
+
+ port.mac.raster <- mask(crop(GH_PM,port.mac),port.mac,"~/GIS_data/Hunter/mask files/PortMac.mask.tif",format="GTiff",overwrite=T)
+
+  wyong.dir <- "~/GIS_data/Hunter/All data from harddrive/Wyong/"
+  setwd(wyong.dir)
+  
+  wyong <- readOGR(dsn=".",layer="Wyong_boundary")
+    wyong <- spTransform(wyong,GDA94.56)
+
+  wyong.mask <- crop(mask(shp2raster(wyong,gh.raster,value=0,bkg=0,label="wyong.mask",save=F,map=F),wyong),wyong,"~/GIS_data/Hunter/mask files/wyong.mask.tif",format="GTiff",overwrite=T)
+

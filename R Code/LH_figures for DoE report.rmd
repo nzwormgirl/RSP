@@ -1,0 +1,180 @@
+REclassify zonation output for AURIN
+========================================================
+
+
+
+```{r load rasters}
+  rm(list=ls())
+  
+  packages(raster)
+  packages(rgdal)
+  packages(maptools)
+packages(colorRamps)
+packages(fields)
+
+  input.dir <- "~/GIS_data/Perth-Peel/zonation/100m/output_files/scenarios/"
+  scenario.dir <- "~/GIS_data/Perth-Peel/zonation/100m/scenarios/"
+  output.dir <- "~/GIS_data/Perth-Peel/zonation/100m/output_files/figures/"
+
+  asc.files <- dir(input.dir, pattern="rank.asc$")
+    asc.files <- asc.files[grep("scenario",asc.files)]
+
+ zonation.output <- stack(lapply(paste0(input.dir,asc.files),raster))
+
+weighting.files <- dir("~/GIS_data/Perth-Peel/zonation/100m/output_files/weighted/", pattern="rank.asc$")
+    weighting.files <- weighting.files[grep("ws",weighting.files)]
+
+ weighting.output <- stack(lapply(paste0("~/GIS_data/Perth-Peel/zonation/100m/output_files/weighted/",weighting.files),raster))
+
+PP.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Perth-Peel/DOP/DoP_StrategicAssessmentStudyBoundary_Extended_20121004.shp")
+  
+```
+
+You can also embed plots, for example:
+
+
+```{r}
+IsBecomes.zonation <- matrix(c(0,0.20,1, 0.20,0.50,2, 0.50,0.75,3,0.75,0.90,4,0.90,0.95,5,0.95,0.98,6,0.98,1.00,7), ncol=3, byrow=TRUE)
+  
+reclassified.zonation <- reclassify(zonation.output,IsBecomes.zonation)
+reclassified.weighting <- reclassify(weighting.output,IsBecomes.zonation)
+
+leg.labels <- c("100","80","50","25%","10%","5%","2","0")
+breaks <- c(0,0.2,0.5,0.75,0.9,0.95,0.98,1)
+colours <- c("black","dark blue","blue","yellow","magenta","dark red", "red")
+
+
+region <- list("sp.polygons", PP.mask)
+region.layout <- list(region)
+
+for (z in seq(asc.files)){
+
+  r <- reclassified.zonation[[z]]
+  
+  png(paste0(output.dir,asc.files[z],".png"),height=10,width=7,units="cm",res=300, bg="transparent")
+  par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+  plot(r,col=blue2red(7),legend=F,box=F,axes=F)
+    plot(PP.mask, add=T, lwd=0.5)
+  dev.off()
+  }
+
+for (w in seq(weighting.files)){
+
+  r <- reclassified.weighting[[w]]
+  
+  png(paste0(output.dir,weighting.files[w],".png"),height=10,width=7,units="cm",res=300, bg="transparent")
+  par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+  plot(r,col=blue2red(7),legend=F,box=F,axes=F)
+    plot(PP.mask, add=T, lwd=0.5)
+  dev.off()
+  }
+
+
+png(paste0(output.dir,"zonation.legend.png"),height=5,width=3,units="cm",res=300, bg="transparent")
+par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+image.plot( legend.only=TRUE, zlim= c(0,1), breaks=breaks,col=blue2red(7),axis.args=list( at=c(0,1), labels=c("Low","High")),legend.args=list(text='Conservation priority', side=2, font=2, line=2.5, cex=0.8))
+dev.off()
+
+```
+
+```{r top 30}
+top.30 <- zonation.output[[1]]
+  top.30[top.30<0.7] <- NA
+  top.30[!is.na(top.30)] <- 6
+
+writeRaster(top.30,paste0(output.dir,"top.30_unconstrained.tif"),overwrite=T)
+
+png(paste0(output.dir,"top30_unconstrained.png"),height=10,width=7,units="cm",res=300, bg="transparent")
+  par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+  plot(top.30,col="darkred",legend=F,box=F,axes=F)
+    plot(PP.mask, add=T, lwd=0.5)
+  legend("topright",fill="darkred",legend="Top 30%",bty="n",cex=0.8)
+  dev.off()
+
+
+```
+
+```{r top 30 & scenarios}
+
+scenario.files <- dir(scenario.dir, pattern=".tif$")
+    scenario.files <- scenario.files[grep("scenario",scenario.files)]
+
+scenario.rasters <- lapply(paste0(scenario.dir,scenario.files),raster)
+
+scenarios <- d(labels=c("Protected Areas","All - Option 1", "All - Option 2", "EIA1","EIA2","EIA3 - Option 1", "EIA3 - Option 2", "BRM EIL V4", "Rural residential","Infrastructure", "Pines"),order=c(11,9,10,1,2,3,4,5,6,7,8))
+
+png(paste0(output.dir,"all scenarios.png"),height=24,width=16,units="cm",res=300, bg="transparent")
+    par(mfrow=c(3,4),mar=c(0.25,1.5,1,1), oma=c(0,0,0,0))
+
+for (s in 1:10){
+  sort.no <- which(scenarios$order==s)
+  r <- scenario.rasters[[sort.no]]
+  r[r==2] <- 0
+  development <- r
+  development[development!=1] <- NA
+  cat("Total", as.character(scenarios$labels[sort.no]), "area (ha) =", length(development[!is.na(development)]),"\n")
+   
+  plot(PP.mask,col="grey",  lwd=0.5)
+  plot(development,col="black",legend=F,box=F,axes=F, add=T)
+  mtext(paste0(s,") ",scenarios$labels[sort.no]),side=3,cex=0.8,adj=0,line=-1)
+  
+}
+ dev.off()
+
+top.30.mask <- top.30
+  top.30.mask[is.na(top.30)] <- 0
+  top.30.mask <- mask(top.30.mask,PP.mask)
+
+for (s in seq(scenario.files)){
+
+  r <- scenario.rasters[[s]]
+  r[r==2] <- 0
+    
+  t <- r + top.30.mask
+  t[t==0] <- NA
+  
+#     t[t<6] <- 1
+#     t[t>6] <- 7
+  
+  cat(scenario.files[s], "conflict % =", length(t[t==11])/length(t[t>=6]),"\n")
+  
+  writeRaster(t,paste0(output.dir,scenario.files[s],"_top.30.tif"),overwrite=T)
+  
+  png(paste0(output.dir,scenario.files[s],".png"),height=10,width=7,units="cm",res=300, bg="transparent")
+  par(mar=c(0.25,1.5,0.25,1), oma=c(0,0,0,0))
+  plot(t,col=blue2red(3),legend=F,box=F,axes=F)  
+  plot(PP.mask, add=T, lwd=0.5)
+  
+  dev.off()
+  }
+
+
+```
+
+```{r hillshade}
+altitude <- raster("~/GIS_data/Perth-Peel/Maxent_files/environmental_data/100m/ibra/X_altitude.asc")
+
+
+perth <- readShapePoly("~/GIS_data/Perth-Peel/DoP/DoP_StrategicAssessmentStudyBoundary_Extended_20121004.shp")
+
+projection(altitude) <- CRS("+proj=utm +zone=50 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+
+altitude_pp <- mask(crop(altitude,perth),perth)
+
+x <- terrain(altitude_pp,opt=c('slope','aspect'),unit='radians')
+
+hillshade <- hillShade(x[[1]],x[[2]],40,270)
+
+png(paste0(output.dir,"PP_hillshade.png"),height=10,width=7,units="cm",res=300, bg="transparent")
+par(mar=c(0.25,1.5,0.25,0), oma=c(0,0,0,0))
+plot(perth, col="lightgrey",lwd=0.5,box=F,axes=F)
+plot(hillshade, col=grey(0:100/100), add=T, legend=FALSE)
+plot(perth, lwd=0.5, add=T)
+  
+
+dev.off()
+
+
+
+
+```

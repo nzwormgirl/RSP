@@ -1,0 +1,84 @@
+Identify species in Lower Hunter with low AUC values
+========================================================
+
+This script should identify those species within the lower hunter that have an AUC value below a given threshold and generate a raster file based on the point data.
+
+Set the threshold with auc.threshold.
+
+
+```{r setup}
+rm(list=ls())
+
+library(raster)
+
+computer <- "~" #My computer
+#computer <- "Z:/Amy" #Super computer
+
+input.dir <- paste0(computer,"/GIS_data/Hunter/zonation/lower hunter/")
+
+output.dir <- paste0(computer,"/GIS_data/Hunter/zonation/lower hunter/tifs for species with low auc values/")
+  
+taxa <- c("amphibians","birds","mammals","plants","reptiles")
+
+auc.threshold <- 0.5
+
+ hunter.mask <- raster(paste0(computer,"/GIS_data/Hunter/zonation/lower hunter/output_lower.hunter_all.rank.asc"))
+  
+  mask.raster <- raster(paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm_environmental_data/standardised_rasters/final_vegetation.asc"))
+   # set the background cells in the raster to 0
+    mask.raster[!is.na(mask.raster)] <- 0
+    mask.raster <- mask(crop(mask.raster,hunter.mask),hunter.mask)
+
+point.data <- read.csv(paste0(computer,"/GIS_data/Hunter/Maxent_files/species_data/maxent.data_ALA.NSW.csv"))
+  
+
+```
+
+```{r presence absence raster function}
+
+presence.absence.raster <- function (mask.raster,species.data,raster.label="") {
+      #set the cells that contain points to 1
+    speciesRaster <- rasterize(species.data,mask.raster,field=1)
+      speciesRaster <- mask(merge(speciesRaster,mask.raster),mask.raster)
+      #label the raster
+      names(speciesRaster) <- raster.label
+    #plot(speciesRaster,main=raster.label)
+      writeRaster(speciesRaster,paste0(output.dir,raster.label,"_LH.tif"), format="GTiff",overwrite=T)
+    cat("Converted",raster.label,"to raster","\n")
+    gc()
+  }
+
+```
+
+This chunk loops through the five taxa and identifies which species have auc values below the threshold after they have been cut to the Lower Hunter.  It prints a table of the species and their auc value before extracting the points from the original MaxEnt data.  These points are then converted them to a presence absence raster for the Lower Hunter and are saved in the output directory specified by out.dir
+
+
+```{r identify species}
+
+for(t in seq(taxa)){
+  cat("\n", "Checking",taxa[t], "for species below the threshold","\n")
+  auc.values <- read.csv(paste0(computer,"/GIS_data/Hunter/zonation/sdm_max_values_",taxa[t],".csv"))
+    colnames(auc.values) <- c("species", "GH.auc", "LH.auc")
+  
+  print(species.of.interest <- auc.values[auc.values$max.tif < auc.threshold,])
+  
+  species.list <- species.of.interest$species
+    if(length(species.list)>0){
+      species.list <- gsub("_avg.asc","",species.list)
+      species.list <- gsub("_"," ",species.list)
+     
+    for(i in seq(species.list)){
+      species.data <- point.data[point.data$species == species.list[i],]
+      species.data <- species.data[,2:3]
+      species.list[i] <- gsub(" ","_",species.list[i])
+      presence.absence.raster(mask.raster,species.data, raster.label=species.list[i])
+      
+      }
+    rm(species.list)  
+    }
+  }
+
+
+
+```
+

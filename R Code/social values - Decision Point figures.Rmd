@@ -1,0 +1,225 @@
+Create maps for social values Decision Point Article
+========================================================
+
+
+
+```{r import data}
+  rm(list=ls())
+  packages(raster)
+  packages(fields)
+  packages(maptools)
+  packages(reshape)
+  packages(ggplot2)
+  packages(dplyr)
+  packages(png)
+  packages(rasterVis)
+  
+  output.directory <- "~/GIS_data/Hunter/zonation/social ecological values/output_files/"
+
+  region <- readShapePoly("~/GIS_data/Hunter/zonation/social ecological values/region_outlineCopy.shp")
+    region.data <- fortify(region)
+  
+  BioH <- raster(paste0(output.directory,"conservation_high.asc"))
+    BioH[!is.na(BioH)] <- 1
+    BioH[is.na(BioH)] <- 0
+  
+  SocH <- raster(paste0(output.directory,"social_high.asc"))
+    SocH[!is.na(SocH)] <- 3
+    SocH[is.na(SocH)] <- 0
+  
+  DevH <- raster(paste0(output.directory,"development_high.asc"))
+    DevH[!is.na(DevH)] <- 5
+    DevH[is.na(DevH)] <- 0
+
+  BioSoc <- raster(paste0(output.directory,"output_conservation7_social.rank.asc"))
+    BioSoc[BioSoc >= 0.7] <- 10
+    BioSoc[BioSoc!=1] <- 0
+
+colours <- d(colour=c("#87CC66","#7AB6F5","#2AFFD5","#CD6666","#CDAA66","#AA66CD","#895A44","#008080"),scenario=c("1. Biological","3. Social","4. Biological & Social","5. Development","6. Biological & Development","8. Social & Development", "9. Biological, Social & Development","10. Integrating Biological\n& Social Values"),value=c(1,3,4,5,6,8,9,10)) 
+
+
+```
+
+
+
+```{r combine layers}
+
+  High <- stack(BioH,SocH,DevH)
+    High[is.na(High)] <- 0
+    
+  combined <- calc(High,sum)
+    combined[combined==0] <- NA
+
+
+  writeRaster(combined,paste0(output.directory,"combined_overlays.DP.tif"),format="GTiff",overwrite=T)
+
+
+
+tiff("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/overlays.tif",res=300,compression="lzw",width=15,height=10,units="cm")
+  par(mar=c(0,0,0,0))  
+plot(combined,legend=F,box=F,axes=F,xlim=c(323000,420000),ylim=c(634000,6400000),col=colours$colour)
+    plot(region,add=T)
+    par(xpd = TRUE)
+    legend(x = 387500, y = 6355000,  legend=colours$scenario[1:3], fill = colour[1:3],cex=0.7,bty="n") 
+dev.off()
+  
+
+```
+
+
+```{r biological & social}
+
+  bs.high <- stack(BioH,SocH)
+    bs.high[is.na(bs.high)] <- 0
+    
+  bs.combined <- calc(bs.high,sum)
+    bs.combined[bs.combined==0] <- NA
+
+
+  writeRaster(bs.combined,paste0(output.directory,"BS.combined_overlays.DP.tif"),format="GTiff",overwrite=T)
+
+
+svg("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/bs.overlay.svg",width=15,height=10)
+  par(mar=c(0,0,0,0),mfrow=c(2,1))  
+plot(bs.combined,legend=F,box=F,axes=F,xlim=c(323000,420000),ylim=c(634000,6400000),col=as.character(colours$colour[1:3]))
+    plot(region,add=T)
+    par(xpd = TRUE)
+    legend(x = 387500, y = 6355000,  legend=colours$scenario[1:3], fill = as.character(colour[1:3]),cex=0.7,bty="n") 
+
+plot(BioSoc,legend=F,box=F,axes=F,xlim=c(323000,420000),ylim=c(634000,6400000),col=as.character(colours$colour[8]))
+    plot(region,add=T)
+    par(xpd = TRUE)
+    legend(x = 387500, y = 6355000,  legend=colours$scenario[8], fill = as.character(colours$colour[8]), cex=0.7,bty="n") 
+dev.off()
+  
+
+GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs") 
+hunter.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Hunter/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/LHRS_Study_Area.shp", proj4=GDA94.56)
+    hunter.mask.data <- fortify(hunter.mask)
+
+
+BS.overlay <- {
+  gplot(bs.combined) + geom_raster(aes(fill=value)) +
+    coord_equal()  + 
+    scale_fill_gradientn(colours=as.character(colours$colour[c(1,2,3)]),breaks = c(1,3,4),na.value="white",guide="legend", labels=colours$scenario[1:3]) + 
+    scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+    geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA, alpha = .01, size = .5) +
+    theme_bw() +
+    theme(axis.ticks.x = element_blank()) + 
+    theme(panel.background = element_blank(),panel.grid = element_blank(),panel.border=element_blank()) +  
+    theme(axis.title = element_blank(),axis.ticks = element_blank(),axis.text  = element_blank()) + 
+#     theme(legend.title=element_blank(), legend.position=c("right"), legend.text = element_text(size=12),legend.key=element_rect(colour = 'white',size=1))
+    theme(legend.position="none")
+  }
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/BS.overlay.svg",BS.overlay)
+
+BS.integration <- {
+  gplot(BioSoc) + geom_raster(aes(fill=value)) +
+  coord_equal()  +   
+  scale_fill_gradientn(colours=c(NA,as.character(colours$colour[8])),breaks = c(0,1),na.value="white",guide="legend", labels=c("",as.character(colours$scenario[8]))) + 
+  scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+  geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA, alpha = .01, size = 0.5) +
+  theme_bw() +
+  theme(axis.ticks.x = element_blank()) + 
+  theme(panel.background = element_blank(),panel.grid = element_blank(),panel.border=element_blank()) +  
+  theme(axis.title = element_blank(),axis.ticks = element_blank(),axis.text  = element_blank()) + 
+#   theme(legend.title=element_blank(), legend.position=c("right"), legend.text = element_text(size=12),legend.key=element_rect(colour = 'white',size=1))
+  theme(legend.position="none")
+}
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/BS.integration.svg",BS.integration)
+
+```
+
+```{r import curve data}
+
+scenarios <- c("optimal_conservation7", "optimal_social", "optimal_development","conservation7_social", "conservation7_social.costs", "conservation7_development.costs", "conservation7_development.mask", "conservation7_social.development.costs","conservation7_social.development.mask", "optimal_development_inverse","old.inverse.development")
+
+  species <- c("Powerful owl","Masked owl","Sooty owl","Spotted tailed quoll","Yellow-bellied glider","Squirrel glider","Koala")
+
+ 
+for(i in seq(scenarios)) {
+   assign(paste0(scenarios[i], ".curves"), read.csv(paste0(output.directory,"output_",scenarios[i],".curves.csv")) )
+    }
+
+#recalculate mean & average curve values to include only biodiversity features
+conservation7_social.curves$ave_prop_rem <- round(rowMeans(conservation7_social.curves[,8:14]),3)
+conservation7_social.curves$min_prop_rem <- apply(conservation7_social.curves[,8:14], 1, min)
+
+conservation7_social.development.costs.curves$ave_prop_rem <- round(rowMeans(conservation7_social.development.costs.curves[,8:14]),3)
+conservation7_social.development.costs.curves$min_prop_rem <- apply(conservation7_social.development.costs.curves[,8:14], 1, min)
+
+conservation7_social.development.mask.curves$ave_prop_rem <- round(rowMeans(conservation7_social.development.mask.curves[,8:14]),3)
+conservation7_social.development.mask.curves$min_prop_rem <- apply(conservation7_social.development.mask.curves[,8:14], 1, min)
+
+optimal_social.curves$ave_prop_rem <- round(rowMeans(optimal_social.curves[,11:17]),3)
+optimal_social.curves$min_prop_rem <- apply(optimal_social.curves[,11:17], 1, min)
+
+optimal_development.curves$ave_prop_rem <- round(rowMeans(optimal_development.curves[,13:19]),3)
+optimal_development.curves$min_prop_rem <- apply(optimal_development.curves[,13:19], 1, min)
+
+optimal_development_inverse.curves$ave_prop_rem <- round(rowMeans(optimal_development_inverse.curves[,13:19]),3)
+optimal_development_inverse.curves$min_prop_rem <- apply(optimal_development_inverse.curves[,13:19], 1, min)
+
+old.inverse.development.curves$ave_prop_rem <- round(rowMeans(old.inverse.development.curves[,13:19]),3)
+old.inverse.development.curves$min_prop_rem <- apply(old.inverse.development.curves[,13:19], 1, min)
+
+curves <- list(optimal_conservation7.curves,optimal_social.curves,optimal_development.curves,conservation7_social.curves,conservation7_social.costs.curves,conservation7_development.costs.curves,conservation7_development.mask.curves, conservation7_social.development.costs.curves,conservation7_social.development.mask.curves,optimal_development_inverse.curves,old.inverse.development.curves )
+
+```
+
+```{r plot top 30% for each species}
+
+top.30 <- rbind(optimal_conservation7.curves[optimal_conservation7.curves$Prop_landscape_lost==0.7009,c(4,8:14)],optimal_social.curves[optimal_social.curves$Prop_landscape_lost==0.7009,c(4,11:17)],conservation7_social.curves[conservation7_social.curves$Prop_landscape_lost==0.7009,c(4,8:14)])
+  top.30$scenario <- scenarios[c(1,2,4)]
+  colnames(top.30) <- c("Average",species,"scenario")
+  top.30 <- top.30[,-1]
+  
+  species.order <- top.30[1,-8]
+    species.order <- colnames(species.order[order(species.order,decreasing=T)])
+
+  plot.30 <- melt(top.30,id="scenario")
+    colnames(plot.30) <- c("scenario","species","distribution")
+    plot.30$scenario[grep("optimal_conservation",plot.30$scenario)] <- "Biological values only"
+    plot.30$scenario[grep("optimal_social",plot.30$scenario)] <- "Social values only"
+    plot.30$scenario[grep("conservation7_social",plot.30$scenario)] <- "Integrated solution"
+    plot.30$scenario <- factor(plot.30$scenario,levels = c("Integrated solution","Social values only","Biological values only"))
+    
+  for(i in seq(species.order)){
+    plot.30$plot.order[plot.30$species==species.order[i]] <- i    
+  }
+
+
+
+  species.plot <- {
+    ggplot(plot.30, aes(reorder(species,plot.order), distribution, fill = scenario)) + geom_bar(stat="identity", position = "dodge") +
+    ylab("Proportion of distribution protected") +
+    coord_flip() +
+    theme_bw() +
+    scale_fill_manual(values=as.character(colours$colour[c(8,3,1)]),breaks=c("Biological values only","Social values only","Integrated solution")) + 
+    theme(axis.ticks.x = element_blank()) + 
+    theme(panel.background = element_blank(),panel.grid.minor = element_blank(),panel.grid.major.y = element_blank(),panel.border=element_blank()) +  
+    theme(axis.title.y = element_blank(),axis.ticks.y = element_blank(),axis.text.y  = element_text(hjust=1, size=14)) + 
+    theme(axis.title.x = element_text(vjust=0,size=15), axis.text.x = element_text(size=12)) +
+    theme(legend.title=element_blank(), legend.position=c(0.85,0.925), legend.text = element_text(size=12),legend.key=element_rect(colour = 'white',size=1))
+    }
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/species_distributions.tiff",species.plot)
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/species_distributions.svg",species.plot)
+
+# tiff("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/species_distributions.tif",compression="lzw",res=300,height=20,width=20,pointsize=12)
+#   species.plot
+# dev.off()
+
+
+```
+
+```{r import png images}
+
+  test <- multiplot(BS.overlay,BS.integration,species.plot,cols=1)
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/test.tiff",test)
+
+```

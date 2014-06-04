@@ -1,0 +1,232 @@
+Add security categories to LH protected areas layer
+========================================================
+
+This RMarkdown script takes individual layers representing protected areas within the Lower Hunter valley, assigns a *security of protection* score.  The layers are then merged and exported as a clipped file for use in Zonation analyses.
+
+I have built this from the original individidual layers and compiled it to make sure that areas that have multiple classifications under different legislation end up with the correct categories. 
+
+Below is Robbie Economos' classification which I have loosely used:  
+1. Nature Reserve  
+2. National Park  
+3. State Recreation Area  
+4. Ramsar Wetlands  
+5. State Forest Flora Reserves  
+5. Conservation Agreements  
+6. SEPP No. 14 and SEPP 26  
+7. Wildlife Refuge  
+ 
+* Protected area (Unknown)  
+* Registered Property Agreements (Unknown)  
+* Commonwealth heritage public  (Unknown) 
+
+
+```{r setup, warning=FALSE,error=FALSE,echo=FALSE,message=FALSE,tidy=TRUE, results='hide'}
+rm(list=ls())
+
+packages(maptools)
+packages(sp)
+packages(rgeos)
+packages(raster)
+
+opts_chunk$set(dev="png", dev.args=list(type="cairo"), dpi=96, warning=FALSE,error=FALSE,echo=FALSE,message=FALSE,tidy=TRUE, results='hide')
+
+setwd("~/GIS_data/Hunter/Plans/PA data for Amy - LH/")
+output.directory <- "~/GIS_data/Hunter/Plans/PA data for Amy - LH/rasters/"
+
+GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+create.raster <- function (s, mask.raster, raster.label, value=1, transform=FALSE) {
+    
+   if(transform==TRUE) {
+     proj4string(s) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
+    s <- spTransform(s, CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
+     }
+    
+  r <- rasterize(s,mask.raster)
+    r[!is.na(r)] <- value
+    r <- mask(merge(r,mask.raster),mask.raster, filename=paste0(output.directory,raster.label), format="GTiff", overwrite=T)
+    names(r) <- rep(raster.label,length(names(r)))
+    
+    plot(r, main=raster.label,zlim=c(0,3),legend=F,axes=F)
+
+    return(r)
+  }
+
+LH.mask <- raster("~/GIS_data/Hunter/mask files/LH.mask.tif")
+  LH.mask[!is.na(LH.mask)] <- 0
+
+ LH.clipping.mask <- raster("~/GIS_data/Hunter/mask files/LH.clipping.mask.tif")
+ # set the background cells in the raster to 0
+  LH.clipping.mask[!is.na(LH.clipping.mask)] <- 0
+
+```
+
+**Conservation Layers**  
+Based on the following shapefiles:
+* NPWSReserves.shp  
+* ConservationAgreementsLowerHunter.shp  
+* RegisteredPropertyAgreementsLowerHunter.shp  
+* WildlifeRefugesLowerHunter.shp  
+* CAPAD_ext_LH.shp  
+* ramsar_wetlands_LH.shp  
+* sepp14_shape.shp  
+* SEPP26.shp  
+ 
+
+```{r import conservation layers, warning=FALSE,error=FALSE,echo=FALSE,message=FALSE,tidy=TRUE, results='hide'}
+setwd("~/GIS_data/Hunter/Plans/PA data for Amy - LH/")
+
+# National parks
+  NPWS.shp <- readShapePoly("Data layers for v1/NationalParks/NPWSReserves.shp", proj4 = GDA94)
+
+  NPWS.raster <- create.raster(NPWS.shp[grepl(c("NP|NR|RP|SC"),NPWS.shp$reservetyp),],LH.mask,raster.label = "NPWS.reserves", transform=TRUE, value=3)
+
+
+## Conservation Partners Data
+  
+# Conservation Agreements
+  Conservation_agreements <- readShapePoly("Data layers for v1/Conservation Partners Data/ConservationAgreementsLowerHunter.shp", proj4string=GDA94)
+
+  Cons.Agree.raster <- create.raster(Conservation_agreements,LH.mask,"ConservationAgreementsLowerHunter",transform=TRUE,value=3)
+
+# Registered Property Agreements
+  Reg.prop.agreements <- readShapePoly("Data layers for v1/Conservation Partners Data/RegisteredPropertyAgreementsLowerHunter.shp", proj4string=GDA94)
+
+  Reg.prop.raster <- create.raster(Reg.prop.agreements,LH.mask,"RegisteredPropertyAgreementsLowerHunter",transform=TRUE,value=1)
+
+# Wildlife refuges
+  wildlife_refuges <- readShapePoly("Data layers for v1/Conservation Partners Data/WildlifeRefugesLowerHunter.shp", proj4string=GDA94)
+  wildlife_refuges.raster <- create.raster(wildlife_refuges,LH.mask,"wildlifeRefugesLowerHunter",transform=TRUE,value=1)
+
+# Protected Areas
+  capad <- readShapePoly("Data layers for v1/ProtectedAreas/CAPAD_ext_LH.shp",proj4string=GDA94)
+
+  capad_3.raster <- create.raster(capad[grepl(c("National Park|Nature Reserve|Aboriginal Area|State Conservation Area|Regional Park"),capad$TYPE),], LH.mask, "capad3",transform=TRUE,value=3)
+
+  capad_2.raster <- create.raster(capad[grepl(c("Flora Reserve"),capad$TYPE),], LH.mask, "capad2",transform=TRUE,value=2)
+
+  capad_1.raster <- create.raster(capad[grepl(c("Protected area"),capad$TYPE),], LH.mask, "capad1",transform=TRUE,value=1)
+
+# Ramsar wetlands
+  ramsar.shp <- readShapePoly("Data layers for v1/ramsar_wetlands_for_download/ramsar_wetlands_LH.shp", proj4string=GDA94)
+
+  ramsar.raster <- create.raster(ramsar.shp,LH.mask,"ramsar",transform=TRUE,value=2)
+
+# SEPP 14
+  sepp14.shp <- readShapePoly("Data layers for v1/sepp14 coastal protection/sepp14_shape.shp", proj4string=GDA94)
+
+  sepp14.raster <- create.raster(sepp14.shp,LH.mask,"SEPP14", transform=TRUE,value=2)
+
+# SEPP 26
+  sepp26.shp <- readShapePoly("Data layers for v1/sepp26 littoral rainforest/SEPP26.shp", proj4string=GDA94)
+
+  sepp26.raster <- create.raster(sepp26.shp,LH.mask,"SEPP26", transform=TRUE,value=2)
+
+```
+
+**Heritage Layers**  
+Based on three shapefiles:  
+* commonwealth_heritage_public_LH.shp (after removing the Williamtown RAAF Base Group)  
+* LH_Commonwealth_Lands.shp  
+* WilliamtownRAAF_HeritageSites.shp  
+
+```{r import heritage layers, warning=FALSE,error=FALSE,echo=FALSE,message=FALSE,tidy=TRUE, results='hide'}
+setwd("~/GIS_data/Hunter/Plans/PA data for Amy - LH/")
+
+# Heritage
+  com_heritage <- readShapePoly("Data layers for v1/commonwealth_heritage_public/commonwealth_heritage_public_LH.shp", proj4string=GDA94.56)
+    #remove the polygons associated with the airport
+    com_heritage <- com_heritage[com_heritage$NAME!="Williamtown RAAF Base Group",]
+  
+  com_heritage_raster <- create.raster(com_heritage, LH.mask,raster.label="commonwealth_heritage_public",value=2)
+
+# LH Commonwealth Lands (These seem like a strange thing to include - not really a protected area)
+  commonwealth.lands <- readShapePoly("Additional data layers for v2/Commonwealth Lands/data/LH_Commonwealth_Lands.shp", proj4string=GDA94)
+
+  commonwealth.lands.raster <- create.raster(commonwealth.lands, LH.mask, "CommonwealthLands",transform=TRUE,value=2)
+
+# Williamtown Heritage Sites
+  WHS <- readShapePoly("Additional data layers for v2/Heritage sites around WilliamtownRAAF/WilliamtownRAAF_HeritageSites.shp", proj4string=GDA94)
+
+  WHS.raster <- create.raster(WHS,LH.mask, "WilliamtownRAAF_HeritageSites", transform=T, value=3)
+
+```
+
+The spatial data have been classified into three levels of security as defined below:
+
+**High**  
+* National Park  
+* Nature Reserve  
+* Ramsar  
+
+**Medium**  
+* State Conservation Area  
+* Regional Park  
+* Flora Reserve (Flora Management areas within State Forests)  
+* Protected Area (Forest Management areas within State Forests)  
+* Conservation Agreements  
+* WilliamtownRAAF_HeritageSites  
+* Commonwealth Lands (Largely defence housing and postoffices)  
+* Commonwealth Heritage (excluding the Williamtown RAAF Base Group)  
+* Aboriginal Area (based on CAPAD)  
+
+**Low**  
+* SEPP 14  
+* SEPP 26  
+* Registered property agreements  
+* Wildlife Refuges  
+
+These were then merged to create one layer representing the security of protected areas.  Where areas with differing classifications overlapped, the highest security level was assigned.
+
+```{r merge rasters, warning=FALSE,error=FALSE,echo=FALSE,message=FALSE,tidy=TRUE, results='hide'}
+setwd("~/GIS_data/Hunter/Plans/PA data for Amy - LH/")
+
+protected.areas <- calc(stack(com_heritage_raster,NPWS.raster,Cons.Agree.raster,Reg.prop.raster,wildlife_refuges.raster,capad_1.raster,capad_2.raster,capad_3.raster,ramsar.raster,sepp14.raster,sepp26.raster,commonwealth.lands.raster,WHS.raster),max)
+
+  protected.areas <- protected.areas + 3  
+    writeRaster(protected.areas, filename=paste0(output.directory,"ProtectedAreas_v3"), format="GTiff", overwrite=T)
+
+# create constant protected areas layer
+  protected.areas.constant <- protected.areas
+  protected.areas.constant[protected.areas.constant>3] <- 4
+  writeRaster(protected.areas.constant, filename=paste0(output.directory,"ProtectedAreas_Constant_v3"), format="GTiff", overwrite=T)
+
+  
+plot(protected.areas, zlim=c(3,6),legend=F,col = rev(terrain.colors(4)), main="Security of Protected Areas",axes=F)
+    legend("bottomright", bty="n",legend = c("High", "Medium", "Low"), fill = terrain.colors(4)[1:3])
+plot(protected.areas.constant, legend=F,col = rev(terrain.colors(2)), main="Protected Areas",axes=F)
+
+```
+
+The security layer was then clipped by the Lower Hunter vegetation mask for inclusion in the Zonation analyses.
+
+```{r clip protected areas by vegetation mask for zonation, warning=FALSE,error=FALSE,echo=FALSE,message=FALSE,tidy=TRUE, results='hide'}
+setwd("~/GIS_data/Hunter/Plans/PA data for Amy - LH/")
+  
+protected.areas.constant.clip <- mask(protected.areas.constant,LH.clipping.mask, filename=paste0(output.directory,"ProtectedAreas_Constant_v3_clipped"), format="GTiff", overwrite=T)
+
+protected.areas.clip <- mask(protected.areas,LH.clipping.mask, filename=paste0(output.directory,"ProtectedAreas_v3_clipped"), format="GTiff", overwrite=T)
+
+
+plot(protected.areas.constant.clip, legend=F, main="Protected Areas (clipped)",axes=F)
+
+plot(protected.areas.clip, zlim=c(3,6),legend=F,col = rev(terrain.colors(4)), main="Security of Protected Areas (clipped)",axes=F)
+    legend("bottomright", bty="n",legend = c("High", "Medium", "Low"), fill = terrain.colors(4)[1:3])
+
+```
+
+
+```{r create word document, echo=FALSE,eval=FALSE}
+setwd("~/RSP/R Code")
+name <- "create and classify protected areas layer"
+library(knitr)
+library(pander)
+knit(paste0(name, ".Rmd"), encoding = "utf-8")
+name <- "create and classify protected areas layer"
+Pandoc.brew(file = paste0(name, ".md"), output = name, convert = "docx")
+
+```
+
+***
+*This file was last updated on 04 March 2014 and last run on `r format(Sys.time(), "%d %B %Y")`.*

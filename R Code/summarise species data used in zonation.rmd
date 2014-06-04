@@ -1,0 +1,42 @@
+
+
+```{r}
+rm(list=ls())
+packages(dplyr)
+
+  species.list <- read.csv("~/GIS_data/Hunter/species point data/IBRA threatened species list.csv")
+    
+    unique(species.list$NSW.status)
+    unique(species.list$Comm.status)
+
+    species.list$combined.status <- paste(species.list$NSW.status,species.list$Comm.status)
+    species.list$final.status <- NA
+    
+    species.list$final.status[grep("E",species.list$combined.status)] <- "E"
+    
+  
+  GH.spp <- read.table("~/GIS_data/Hunter/Zonation/greater hunter/GH.zonation.spp")
+    names(GH.spp)[6] <- "species"
+    GH.spp <- gsub("_"," ",strsplit(as.character(GH.spp$species),"_GH.tif"))
+  
+  GH.species <- species.list[species.list$Scientific.Name %in% GH.spp,]
+  
+  UH.spp <- read.table("~/GIS_data/Hunter/Zonation/upper hunter/UH.zonation.spp")
+    names(UH.spp)[6] <- "species"
+    UH.spp <- gsub("_"," ",strsplit(as.character(UH.spp$species),"_UH.tif"))
+  
+  UH.species <- species.list[species.list$Scientific.Name %in% UH.spp,]
+    UH.species$UH.sdm[is.na(UH.species$GH.sdm)]
+
+  UH.me.species <- read.csv("~/GIS_data/Hunter/Zonation/upper hunter/maxent_species.list.csv")
+    UH.me.species <- UH.me.species[!is.na(UH.me.species$UH.max),]
+    UH.me.species <- UH.me.species[UH.me.species$UH.max<=0.001,]
+    UH.species$UH.sdm[UH.species$Scientific.Name %in% UH.me.species$species] <- "SDM"
+
+
+summarise(group_by(UH.species,UH.sdm), count = n())
+
+summarise(group_by(GH.species,GH.sdm), count = n())
+
+
+```

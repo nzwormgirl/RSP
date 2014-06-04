@@ -1,0 +1,134 @@
+Create density layer from coal bore hole data
+========================================================
+
+
+```{r}
+rm(list=ls())
+packages(MASS)
+packages(maptools)
+packages(rgdal)
+packages(spatstat)
+packages(sp)
+packages(raster)
+
+  GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+# LH administrative boundary
+  LH.shp <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/LHRS_Study_Area.shp", proj4=GDA94.56)
+
+  LH.mask <- raster("~/GIS_data/Hunter/mask files/LH.mask.tif")
+    LH.mask[!is.na(LH.mask)] <- 0
+
+  LH.clipping.mask <- raster("~/GIS_data/Hunter/mask files/LH.clipping.mask.tif")
+    LH.clipping.mask[!is.na(LH.clipping.mask)] <- 0
+
+# GH boundary
+  GH.shp <- readShapePoly("~/GIS_data/Hunter/Plans/HCCREMS_AreaOfInterest/HCCREMS_AoI_GDAtm.shp", proj4=GDA94.56)
+
+  GH.W <- as(as(GH.shp,"SpatialPolygons"),"owin")
+
+# coal borehole data
+coal.shp <- readShapePoints("~/GIS_data/Hunter/Scenarios/coal data/DPI/coal_borehole.shp", proj4=GDA94)
+  coal.shp <- spTransform(coal.shp, GDA94.56)
+
+
+```
+
+The current raster is based on all of the borehole records - probably want to do something where we remove the really old ones
+
+```{r generate density raster}
+# convert borehole shape file to ppp format
+  coal.ppp <- as(as(coal.shp,"SpatialPoints") ,"ppp")
+
+  coal.ppp <- coal.ppp[GH.W]
+  coal.ppp <- unique(coal.ppp)
+  unitname(coal.ppp) <- "metre"
+
+# calculate density and convert to raster
+  coal.density <- raster(density(coal.ppp,1000))
+  
+# clip to Lower Hunter
+  LH.coal.density <- mask(crop(resample(coal.density,LH.mask),LH.mask),LH.mask)
+
+# standardise raster values
+LH.coal.density.scaled <- (LH.coal.density-cellStats(LH.coal.density,min))/(cellStats(LH.coal.density,max)-cellStats(LH.coal.density,min))
+
+```
+
+
+
+```{r import title & application data}
+
+# coal applications
+coal_app.shp <- readShapePoly("~/GIS_data/Hunter/Scenarios/coal data/DPI/coal_applications.shp", proj4=GDA94)
+  coal_app.shp <- spTransform(coal_app.shp, GDA94.56)
+
+# coal titles
+coal_titles.shp <- readShapePoly("~/GIS_data/Hunter/Scenarios/coal data/DPI/coal_titles.shp", proj4=GDA94)
+  coal_titles.shp <- spTransform(coal_titles.shp, GDA94.56)
+
+# crop titles and applications to Lower Hunter
+  LH.coal_app.shp <- crop(coal_app.shp,LH.mask)
+  LH.coal_titles.shp <- crop(coal_titles.shp,LH.mask)
+
+
+unique(LH.coal_app.shp$APPL_CODE)
+unique(LH.coal_titles.shp$TITLE_CODE)
+
+# assign categories to application/title cores
+  LH.coal_app.shp$cat <- NA
+    LH.coal_app.shp$cat[grepl("MLA",LH.coal_app.shp$APPL_CODE)] <- 3
+    LH.coal_app.shp$cat[grepl("ALA",LH.coal_app.shp$APPL_CODE)] <- 2
+    LH.coal_app.shp$cat[grepl("ELA",LH.coal_app.shp$APPL_CODE)] <- 1
+
+  ## these may not make any sense!
+  LH.coal_titles.shp$cat <- NA
+    LH.coal_titles.shp$cat[grepl("ML|MPL|CCL|CL|CML",LH.coal_titles.shp$TITLE_CODE)] <- 3
+    LH.coal_titles.shp$cat[grepl("AUTH|AL|DSL|PLL",LH.coal_titles.shp$TITLE_CODE)] <- 2
+    LH.coal_titles.shp$cat[grepl("EL",LH.coal_titles.shp$TITLE_CODE)] <- 1
+
+# create title/application rasters
+  LH.coal_app <- mask(rasterize(LH.coal_app.shp,LH.mask,field=LH.coal_app.shp$cat),LH.mask)
+  
+  LH.coal_titles <- mask(rasterize(LH.coal_titles.shp,LH.mask,field=LH.coal_titles.shp$cat),LH.mask)
+
+# merge titles and applications together
+  ## what takes precident where titles and applications overlap? - the max value
+  LH.coal <- calc(stack(LH.coal_app,LH.coal_titles),min)
+
+# multiply title status by density
+  LH.coal.prob <- LH.coal*LH.coal.density.scaled
+  LH.coal.prob.scaled <- (LH.coal.prob-cellStats(LH.coal.prob,min))/(cellStats(LH.coal.prob,max)-cellStats(LH.coal.prob,min))
+
+writeRaster(LH.coal.prob.scaled,paste0("~/GIS_data/Hunter/zonation/lower hunter/coal tifs/mining_prob.tif"),format="GTiff",overwrite=T)
+
+
+```
+
+
+```{r generate zonation mask rasters}
+## Note that these are currently set at the quantiles rather than the actual "probability"
+
+#set LH masks so that the background value is 3 for the zonation runs
+  LH.mask[!is.na(LH.mask)] <- 3
+  LH.clipping.mask[!is.na(LH.clipping.mask)] <- 3
+
+prob.range <- seq(0.05,0.5,by=0.05)
+
+for(i in seq(prob.range)){
+  
+  r <- LH.coal.prob.scaled
+  r[r> quantile(LH.coal.prob.scaled,na.rm=TRUE,probs=(1-prob.range[i]))] <- 1
+  r[r!=1] <- 3
+  
+  r <- merge(r,LH.mask,filename=paste0("~/GIS_data/Hunter/zonation/lower hunter/coal tifs/mining_",1-prob.range[i],".tif"),format="GTiff",overwrite=T)
+  
+  r <- mask(r,LH.clipping.mask,filename=paste0("~/GIS_data/Hunter/zonation/lower hunter/coal tifs/mining_",1-prob.range[i],"_clipped.tif"),format="GTiff",overwrite=T)
+  
+  plot(r,main=paste0("Top ",prob.range[i]*100,"% of mining probability"),axes=F,legend=F,col=terrain.colors(2))
+      
+}
+
+
+```

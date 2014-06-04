@@ -1,0 +1,133 @@
+Compare Maxent AUC values from multiple runs
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+rm(list=ls())
+
+setwd("~/GIS_data/Hunter/Maxent_files/output/combined.output")
+
+output.files <- dir(pattern=".csv$")
+
+for(i in seq(output.files)){
+  assign(output.files[i],read.csv(output.files[i]))
+}
+
+taxa <- c("amphibians","reptiles", "mammals", "birds", "plants")
+
+for(t in seq(taxa)){
+  output <- get(paste0("maxentResults_",taxa[t],"_2013-11-14.csv"))
+    training.gain <- output[,c(1,grep("Training.gain.with.only",colnames(output)))]
+
+    perm.importance <- output[,c(1,grep("permutation.importance",colnames(output)))]
+  
+  relative.contribution <- output[,c(1,grep(".contribution",colnames(output)))]
+  
+  training.AUC <- output[,c(1,grep("Training.AUC",colnames(output)))]
+
+  
+  assign(paste0(taxa[t],"_training.gain"),training.gain)
+  assign(paste0(taxa[t],"_perm.importance"),perm.importance)
+  assign(paste0(taxa[t],"_relative.contribution"),relative.contribution)
+  assign(paste0(taxa[t],"_training.AUC"),training.AUC)
+
+  
+  assign(paste0(taxa[t],"_mean.training.gain"), colMeans(training.gain[,-1]))
+  assign(paste0(taxa[t],"_mean.perm.importance"), colMeans(perm.importance[,-1]))
+  assign(paste0(taxa[t],"_mean.relative.contribution"), colMeans(relative.contribution[,-1]))
+  assign(paste0(taxa[t],"_mean.se.training.AUC"), paste0(round(mean(training.AUC[,-1]),3)," (",round(se(training.AUC[,-1]),3),")"))
+
+  
+  assign(paste0(taxa[t],"_se.training.gain"), apply(training.gain[,-1],2,se))
+  assign(paste0(taxa[t],"_se.perm.importance"), apply(perm.importance[,-1],2,se))
+  assign(paste0(taxa[t],"_se.relative.contribution"), apply(relative.contribution[,-1],2,se))
+
+
+}
+
+
+
+
+training.gain.summary <- d(variable=unique(c(names(amphibians_mean.training.gain),names(reptiles_mean.training.gain),names(mammals_mean.training.gain),names(birds_mean.training.gain),names(plants_mean.training.gain))),amphibians=NA,birds=NA,mammals=NA,plants=NA,reptiles=NA)
+
+for(t in seq(taxa)){
+  input <- get(paste0(taxa[t],"_mean.training.gain"))
+  se.input <- get(paste0(taxa[t],"_se.training.gain"))
+  for(i in seq(names(input))){
+    training.gain.summary[training.gain.summary$variable==names(input)[i],colnames(training.gain.summary)==taxa[t]] <- paste0(round(input[i],2)," (",round(se.input[i],2),")")
+  }
+}
+  training.gain.summary[is.na(training.gain.summary)] <- "-"
+  write.csv(training.gain.summary, "training.gain.summary_2013-11-14.csv")
+
+perm.importance.summary <- d(variable=unique(c(names(amphibians_mean.perm.importance),names(reptiles_mean.perm.importance),names(mammals_mean.perm.importance),names(birds_mean.perm.importance),names(plants_mean.perm.importance))),amphibians=NA,birds=NA,mammals=NA,plants=NA,reptiles=NA)
+
+for(t in seq(taxa)){
+  input <- get(paste0(taxa[t],"_mean.perm.importance"))
+  se.input <- get(paste0(taxa[t],"_se.perm.importance"))
+
+  for(i in seq(names(input))){
+    perm.importance.summary[perm.importance.summary$variable==names(input)[i],colnames(perm.importance.summary)==taxa[t]] <- paste0(round(input[i],2)," (",round(se.input[i],2),")")
+  }
+}
+
+perm.importance.summary$variable <- gsub(".permutation.importance","",perm.importance.summary$variable)
+  perm.importance.summary[is.na(perm.importance.summary)] <- "-"
+
+
+  write.csv(perm.importance.summary, "perm.importance.summary_2013-11-14.csv", row.names=F)
+
+relative.contribution.summary <- d(variable=unique(c(names(amphibians_mean.relative.contribution),names(reptiles_mean.relative.contribution),names(mammals_mean.relative.contribution),names(birds_mean.relative.contribution),names(plants_mean.relative.contribution))),amphibians=NA,birds=NA,mammals=NA,plants=NA,reptiles=NA)
+
+for(t in seq(taxa)){
+  input <- get(paste0(taxa[t],"_mean.relative.contribution"))
+  se.input <- get(paste0(taxa[t],"_se.relative.contribution"))
+
+  for(i in seq(names(input))){
+    relative.contribution.summary[relative.contribution.summary$variable==names(input)[i],colnames(relative.contribution.summary)==taxa[t]] <- paste0(round(input[i],2)," (",round(se.input[i],2),")")
+  }
+}
+
+relative.contribution.summary$variable <- gsub(".contribution","",relative.contribution.summary$variable)
+  relative.contribution.summary[is.na(relative.contribution.summary)] <- "-"
+
+relative.contribution.summary <- rbind(relative.contribution.summary,c("AUC", amphibians_mean.se.training.AUC, birds_mean.se.training.AUC,mammals_mean.se.training.AUC,plants_mean.se.training.AUC,reptiles_mean.se.training.AUC ))
+relative.contribution.summary <- rbind(relative.contribution.summary,c("N", nrow(amphibians_training.AUC), nrow(birds_training.AUC),nrow(mammals_training.AUC),nrow(plants_training.AUC),nrow(reptiles_training.AUC)))
+
+
+
+  write.csv(relative.contribution.summary, "relative.contribution.summary_2013-11-14.csv", row.names=F)
+
+
+```
+
+
+```{r compare AUC values}
+for(t in seq(taxa)){
+  second <- get(paste0("maxentResults_",taxa[t],"_2013-11-07.csv"))
+    second <- second[grep("average",second$Species),]
+  first <-  get(paste0("maxentResults_",taxa[t],"_2013-10-24.csv"))
+    first <- first[grep("average",first$Species),]
+  
+  output <- d(species=unique(c(as.character(first$Species),as.character(second$Species))), Test.AUC1=NA,Test.AUC2=NA,AUC.diff=NA, taxa=taxa[t])
+    for(s in seq(output$species)){
+      if(length(first$Test.AUC[as.character(first$Species)==as.character(output$species[s])]) != 0) output$Test.AUC1[s] <- first$Test.AUC[as.character(first$Species)==as.character(output$species[s])]
+      if(length(second$Test.AUC[as.character(second$Species)==as.character(output$species[s])]) != 0) output$Test.AUC2[s] <- second$Test.AUC[as.character(second$Species)==as.character(output$species[s])]
+      if(!is.na(output$Test.AUC1[s]) & !is.na(output$Test.AUC2[s])) output$AUC.diff[s] <- output$Test.AUC2[s] - output$Test.AUC1[s]
+    }
+  assign(paste0(taxa[t],"_AUC"),output)
+  
+  rm(output,first,second)
+  
+}
+
+all.taxa <- rbind(plants_AUC,birds_AUC,reptiles_AUC,invertebrates_AUC,mammals_AUC)
+
+taxa.summary <- d(aggregate(all.taxa$Test.AUC2,list(taxa=all.taxa$taxa),length), mean.AUC=aggregate(all.taxa$Test.AUC2,list(taxa=all.taxa$taxa),mean, na.rm=T)[,2], mean.diff = aggregate(all.taxa$AUC.diff,list(taxa=all.taxa$taxa),mean, na.rm=T)[,2], min.diff=aggregate(all.taxa$AUC.diff,list(taxa=all.taxa$taxa),min, na.rm=T)[,2], max.diff=aggregate(all.taxa$AUC.diff,list(taxa=all.taxa$taxa),max, na.rm=T)[,2])
+  colnames(taxa.summary)[2] <- "n"
+  
+```
+
