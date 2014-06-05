@@ -18,6 +18,12 @@ port.mac.dir <- "~/GIS_data/Hunter/All data from harddrive/Port MacQuarie/"
 setwd(port.mac.dir)
 
 port.mac <- readOGR(dsn=".",layer="PMHC LGA boundary")
+  port.mac <- spTransform(port.mac,CRSobj=GDA94.56)
+
+GH.dir <- "~/GIS_data/Hunter/Plans/HCCREMS_AreaOfInterest/"
+setwd(GH.dir)
+GH.shp <- readOGR(dsn=".",layer="HCCREMS_AoI")
+  GH.shp <- spTransform(GH.shp,CRSobj=GDA94.56)
 
 gh.raster <- raster("~/GIS_data/Hunter/mask files/GH.mask.tif")
   writeRaster(gh.raster, "~/GIS_data/Hunter/mask files/GH.mask_old.tif")
@@ -45,3 +51,14 @@ gh.raster <- raster("~/GIS_data/Hunter/mask files/GH.mask.tif")
 
   wyong.mask <- crop(mask(shp2raster(wyong,gh.raster,value=0,bkg=0,label="wyong.mask",save=F,map=F),wyong),wyong,"~/GIS_data/Hunter/mask files/wyong.mask.tif",format="GTiff",overwrite=T)
 
+```
+
+```{r merge original polygons}
+setwd("~/GIS_data/Hunter/mask files/")
+GH_PM.shp <- gUnion(port.mac,GH.shp)
+  GH_PM.shp <- SpatialPolygonsDataFrame(GH_PM.shp, data=as.data.frame(t(c(ID=1,Region="GH"))))
+  writePolyShape(GH_PM.shp,"GH_PM")
+  
+# need to open in Arc & remove boundary line manually
+
+```
