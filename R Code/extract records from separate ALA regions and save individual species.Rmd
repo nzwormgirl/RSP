@@ -30,6 +30,25 @@ rbind.match.columns <- function (input1,input2) {
     return(rbind(input1[,column.names], input2[,column.names]))
   }
 
+rbind.columns <- function(x, y,type="all") {
+ 
+  if(type=="all"){
+    x.diff <- setdiff(colnames(x), colnames(y))
+    y.diff <- setdiff(colnames(y), colnames(x))
+ 
+    x[, c(as.character(y.diff))] <- NA
+    y[, c(as.character(x.diff))] <- NA
+    }
+    
+    if(type=="match"){
+      common.names <- intersect(colnames(x), colnames(y))
+      x <- x[, common.names]
+      y <- y[, common.names]
+    }
+ 
+    return(rbind(x, y))
+}
+
 # a function that extracts records for individual species based on the given region
 extract <- function(folder, region, input,species){
   records <- input[grep(species,input$Scientific.Name),]
@@ -192,6 +211,37 @@ setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data")
 
 # update threatened species download information
 write.csv(protected.species, "IBRA threatened species list.csv", row.names=FALSE)
+
+```
+
+``` {r add data from plant workshop}
+plant.input <- read.csv("~/GIS_data/Hunter/species point data/OEH/Andrew_Paget_data.csv")
+
+species.list <- unique(plant.input$Scientific.Name)
+
+  for(i in seq(species.list)){
+    plant.records <- extract("OEH","OEH",plant.input,species.list[i]) 
+        
+    if(is.null(plant.records)==FALSE) {
+      plant.records$YEAR <- 2014
+      plant.records$taxa <- "plants"
+      plant.records$source <- "workshop"
+      protected.species$Downloaded.OEH[grepl(species.list[i],protected.species$Scientific.Name)] <- "yes"
+      protected.species$OEH.records[grepl(species.list[i],protected.species$Scientific.Name)] <- nrow(plant.records) + protected.species$OEH.records[grepl(species.list[i],protected.species$Scientific.Name)]
+      suppressWarnings(try({
+        OEH.records <- read.csv(paste0("OEH data/",species.list[i],".csv"))
+          OEH.records$source <- "OEH"
+        plant.records <- rbind.columns(OEH.records,plant.records)
+        }))
+        
+      write.csv(plant.records, glue("OEH data/",species.list[i],".csv"),row.names=FALSE)
+      cat("Exported",nrow(plant.records), "records for", as.character(species.list[i]),"\n","\n")
+      }
+      suppressWarnings(rm(plant.records,OEH.records,all.records))
+      gc()
+  }
+
+
 
 ```
 *This file was last updated on 12 April 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*
