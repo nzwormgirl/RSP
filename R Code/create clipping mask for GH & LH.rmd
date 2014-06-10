@@ -18,11 +18,14 @@ Create a clippling mask that is used to cut the MaxEnt output for use in Zonatio
   GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 
 # GH administrative boundary
-  GH.mask <- raster("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/hccrems_mask.asc")
-    writeRaster(GH.mask,filename="~/GIS_data/Hunter/mask files/GH.mask.tif",format="GTiff",overwrite=T)
+  GH.mask <- raster("~/GIS_data/Hunter/mask files/GH.mask.tif")
+
+# GH & PM boundary
+  GH_PM.mask <- raster("~/GIS_data/Hunter/mask files/GH_PM.mask.tif")
   
 # LH administrative boundary
   LH.shp <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/LHRS_Study_Area.shp", proj4=GDA94.56)
+
   
 # create LH mask, snapping to the GH mask
   LH.mask <- crop(rasterize(LH.shp,GH.mask),LH.shp, filename="~/GIS_data/Hunter/mask files/LH.mask.tif",format="GTiff",overwrite=T)
@@ -50,6 +53,12 @@ The clipping masks are based on remnant vegetation after standardising the layer
   GH.veg <- raster("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/standardised_rasters/final_vegetation.asc",crs=GDA94.56)
     GH.veg[!is.na(GH.veg)] <- 1
   writeRaster(GH.veg,filename="~/GIS_data/Hunter/mask files/GH.clipping.mask.tif",format="GTiff",overwrite=T)
+
+# Greater Hunter & Port Mac clipping mask
+  GH_PM.veg <- raster("~/GIS_data/Hunter/Maxent_files/ghm.pm_environmental_data/standardised_rasters/final_vegetation.asc",crs=GDA94.56)
+  GH_PM.veg[GH_PM.veg==0] <- NA  
+  GH_PM.veg[!is.na(GH_PM.veg)] <- 1
+  writeRaster(GH_PM.veg,filename="~/GIS_data/Hunter/mask files/GH_PM.clipping.mask.tif",format="GTiff",overwrite=T)
 
 # LH clipping mask
   LH.veg <- mask(crop(GH.veg,LH.mask),LH.exurban.mask,filename="~/GIS_data/Hunter/mask files/LH.clipping.mask.tif",format="GTiff",overwrite=T)
