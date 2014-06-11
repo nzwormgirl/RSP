@@ -238,9 +238,10 @@ for (i in seq(species.list)){
     # remove all species-specific datafiles, so they don't mess up the next round of the loop
     suppressWarnings(rm(ALA.data, NSW.data, OEH.data, ALA.NSW.data, GH_PM.sp,in.hunter,sp.map,))
     gc()
-    setWinProgressBar(pb, i, label = sprintf("%g%% done", round(i/length(species.list),2)*100))
-   
+       
  }, error=function(err) cat(""), warning=function(war) cat(""))
+
+  setWinProgressBar(pb, i, label = sprintf("%g%% done", round(i/length(species.list),2)*100))
 }
   
   colnames(atlas.maxent.data) <- c("longitude","latitude","species","database")
@@ -325,7 +326,8 @@ h(gda_maxent.data)
   close(pb)
 
 export.species <- unique(export_maxent.data$species)
-  export_maxent.data <- export_maxent.data[,colnames(export_maxent.data)!="database"]
+  export_maxent.data <- export_maxent.data[,c("species","x","y")]
+  
                                   
 # save data for species with greater than the minimum number of records after the minimum date in the Hunter region to one file for Maxent analysis
 if(save.output ==TRUE) {
