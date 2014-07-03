@@ -7,7 +7,10 @@ Merge HCCREMS weights with master species list
 rm(list=ls())
 
 # import HCCREMS weights
-  weights <- read.csv("~/GIS_data/Hunter/species point data/HCCREMS fauna weightings.csv")
+  fauna.weights <- read.csv("~/GIS_data/Hunter/species point data/HCCREMS fauna weightings.csv")
+  flora.weights <- read.csv("~/GIS_data/Hunter/species point data/HCCREMS flora weightings.csv")
+  
+  weights <- rbind(fauna.weights,flora.weights)
 
 # import protected species master list
   protected.species <- read.csv("//654cw-20990/Amy/GIS_data/Hunter/species point data/IBRA threatened species list.csv")
@@ -21,10 +24,32 @@ rm(list=ls())
   for(i in seq(species)){
     # relative rank assigned by HCCREMS where 1 is most important and 7 not very important
     protected.species$rank[grepl(species[i],protected.species$Scientific.Name)] <- weights$weighting[grepl(species[i],weights$Scientific.Name)]
-    # relative weight assigned by NERP where 7 is important and 1 is not very important
-    protected.species$weight[grepl(species[i],protected.species$Scientific.Name)] <- (weights$weighting[grepl(species[i],weights$Scientific.Name)] - 8)*-1
-    
   }
+
+protected.species$combined.status <- paste(protected.species$NSW.status,protected.species$Comm.status)
+
+missing.ranks <- d(ranking=c(1:7),fauna=c("CE","E","Endangered population","V","Migratory A","Migratory B","Other"),flora=c("Commonwealth listed","CE","E","V","Endemic","Nominated for listing","P"))
+
+##plants
+protected.species$rank[is.na(protected.species$rank) & !is.na(protected.species$greater.hunter) & protected.species$Taxa=="plants" & grepl("[A-Z]",protected.species$Comm.status)] <- missing.ranks$ranking[1]
+#CE
+protected.species$rank[is.na(protected.species$rank) & !is.na(protected.species$greater.hunter) & protected.species$Taxa=="plants" & grepl("CE",protected.species$NSW.status)] <- missing.ranks$ranking[2]
+protected.species$rank[is.na(protected.species$rank) & !is.na(protected.species$greater.hunter) & protected.species$Taxa=="plants" & grepl("E",protected.species$NSW.status)] <- missing.ranks$ranking[3]
+protected.species$rank[is.na(protected.species$rank) & !is.na(protected.species$greater.hunter) & protected.species$Taxa=="plants" & grepl("V",protected.species$NSW.status)] <- missing.ranks$ranking[4]
+protected.species$rank[is.na(protected.species$rank) & !is.na(protected.species$greater.hunter) & protected.species$Taxa=="plants"] <- missing.ranks$ranking[7]
+
+# fauna
+protected.species$rank[is.na(protected.species$rank) & !is.na(protected.species$greater.hunter) & protected.species$Taxa!="plants" & grepl("CE",protected.species$combined.status)] <- missing.ranks$ranking[1]
+protected.species$rank[is.na(protected.species$rank) & !is.na(protected.species$greater.hunter) & protected.species$Taxa!="plants" & grepl("E",protected.species$combined.status)] <- missing.ranks$ranking[2]
+protected.species$rank[is.na(protected.species$rank) & !is.na(protected.species$greater.hunter) & protected.species$Taxa!="plants" & grepl("population",protected.species$Common.Name)] <- missing.ranks$ranking[3]
+protected.species$rank[is.na(protected.species$rank) & !is.na(protected.species$greater.hunter) & protected.species$Taxa!="plants" & grepl("V",protected.species$combined.status)] <- missing.ranks$ranking[4]
+protected.species$rank[is.na(protected.species$rank) & !is.na(protected.species$greater.hunter) & protected.species$Taxa!="plants" & grepl("C|J|K",protected.species$combined.status)] <- missing.ranks$ranking[6]
+protected.species$rank[is.na(protected.species$rank) & !is.na(protected.species$greater.hunter) & protected.species$Taxa!="plants" & grepl("P",protected.species$combined.status)] <- missing.ranks$ranking[7]
+
+ # relative weight assigned by NERP where 7 is important and 1 is not very important
+    protected.species$weight[!is.na(protected.species$rank)] <- (protected.species$rank[!is.na(protected.species$rank)] - 8)*-1
+
+
 # export master list
   write.csv(protected.species,"//654cw-20990/Amy/GIS_data/Hunter/species point data/IBRA threatened species list.csv",row.names=F)
 ```
