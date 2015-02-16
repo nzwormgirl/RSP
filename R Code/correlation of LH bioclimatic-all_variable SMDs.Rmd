@@ -1,0 +1,63 @@
+---
+title: "Correlation analysis of SDMs in LH for coal paper"
+author: "Amy Whitehead"
+date: "Friday, July 04, 2014"
+output: html_document
+---
+
+Compare the bioclimatic and all-variable SDMs for each species within the vegetated regions of the LH to confirm that the models are producing similar outputs.  Need to normalise the values of each SDM to make sure that the results are comparable.
+
+
+```{r setup}
+rm(list=ls())
+
+packages(raster)
+computer <- "//654cw-20990/Amy/"
+# computer <- "Z:/Amy/"
+
+input.dir <- paste0(computer,"GIS_data/Hunter/Maxent_files/ghm.pm/")
+
+gh.pm.clipping.mask <- raster(paste0(computer,"GIS_data/Hunter/mask files/GH_PM.clipping.mask.tif"))
+
+```
+
+
+
+```{r load rasters}
+taxa <- c("amphibians","birds","mammals","plants","reptiles")
+
+output <- d(taxa=rep(NA,1000),species=NA,cor=NA)
+n.row <- 1
+for(k in seq(taxa)){
+  asc.files <- dir(paste0(input.dir,"all_variables/output/",taxa[k],"/Model3/"),"_avg.asc",full.names=F)
+  cat(taxa[k],"\n")
+  pb <- txtProgressBar(min=0,max=length(asc.files),initial=0,style=3)
+  
+  for(i in seq(asc.files)){
+    
+    all <- mask(raster(paste0(input.dir,"all_variables/output/",taxa[k],"/Model3/",asc.files[i])),gh.pm.clipping.mask)
+    bioclimatic <- mask(raster(paste0(input.dir,"bioclimatic/output/",taxa[k],"/Model3/",asc.files[i])),gh.pm.clipping.mask)
+    
+    output$taxa[n.row] <- taxa[k]
+    output$species[n.row] <- gsub("_"," ",gsub("_avg","",names(all)))
+    output$cor[n.row] <- cor(getValues(all),getValues(bioclimatic),use = "pairwise.complete.obs")
+    
+    n.row <- n.row+1
+    rm(all,bioclimatic)
+    setTxtProgressBar(pb,i)
+  }
+  
+  close(pb)
+  rm(asc.files)
+}
+
+output <- output[complete.cases(output),]
+
+par(mfrow=c(2,1))
+hist(output$cor,main="Correlation btwn bioclimatic & vegetation SDMs")
+boxplot(output$cor~output$taxa,main="Correlation btwn bioclimatic & vegetation SDMs")
+
+write.csv(output,paste0(input.dir,"Model3_veg.bioclimatic.correlations.csv"),row.names=F)
+```
+
+

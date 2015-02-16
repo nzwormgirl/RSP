@@ -1,0 +1,109 @@
+```{r function to create a grid from a vector}
+
+anydat.makegrid <-
+  function(anydat, want.grids = F, preds2R = T, output.name = "preds", filepath = NULL, num.col = NULL, num.row = NULL, xll = NULL, yll = NULL, cell.size = NULL, no.data = NULL, plot=F, full.grid=T, part.number=NULL, part.row = NULL, header = T) 
+  {
+    anydat[is.na(anydat)] <- -9999
+    temp <- anydat
+    
+    if(want.grids)
+    {
+      newname <- paste(filepath, output.name,".asc", sep="")
+      full.pred <- anydat
+      if(header){
+        write(paste("ncols          ",num.col,sep=""),newname)
+        write(paste("nrows          ",num.row,sep=""),newname,append=T)
+        write(paste("xllcorner      ",xll,sep=""),newname,append=T)
+        write(paste("yllcorner      ",yll,sep=""),newname,append=T)
+        write(paste("cellsize       ",cell.size,sep=""),newname,append=T)
+        write(paste("NODATA_value ",no.data,sep=""),newname,append=T)
+      }
+      
+      if(full.grid){
+        full.pred <- anydat
+        full.pred.mat <- matrix(full.pred, nrow=num.row, ncol=num.col, byrow=T)
+        if (plot) 
+        {
+          image(z = t(full.pred.mat)[, nrow(full.pred.mat):1], zlim =  c(0,1), col = rainbow(12))
+        }
+        
+        write.table(full.pred.mat, newname, sep=" ", append=T, row.names=F, col.names=F)
+        
+        #also write to R directory, if required:
+        
+        if(preds2R){assign(output.name,temp, pos=1)}
+      }
+      
+      else{
+        full.pred.mat <- matrix(full.pred, nrow=part.row, ncol=num.col, byrow=T)
+        write.table(full.pred.mat, newname, sep=" ", append=T, row.names=F, col.names=F)
+        if(preds2R){assign(paste(output.name, part.number, sep=""),temp, pos=1)}
+      }
+      
+    }
+    
+    else{
+      assign(output.name,temp, pos=1)
+    }
+    
+  }
+
+````
+
+
+```{r calculate differences in predictions}
+
+#### VECTORS ####
+
+## First I read one model prediction -map- to know the length of the vector I'll get from reading the raster as a vector (reading by rows basically)
+
+dim.pred<-seq(1, length(temp), length(temp)/10) ### length(temp)=14177520. I divide the raster -now vector- in 10 equal parts/chuncks of 1417752 elements each
+
+df.final.mean<-data.frame(matrix(nrow=1417752, ncol=10))### It will accomodate the mean results in chuncks (columns)
+
+pb <- txtProgressBar(min = 0, max = length(dim.pred), style = 3)
+
+for (j in 1:length(dim.pred))
+{   df<-data.frame(matrix(nrow=1417752, ncol=188)) ### data frame that will accomodate the data for each chunck of the original raster across all the 188 species
+    
+    for (i in 1:length(species.list.7AUC)) ## loop through all my species
+      
+    {     
+      temp<-scan(paste0(wd, "Extremes_analyses/mammals_models/output/ext/full/",
+                        species.list.7AUC[i],"_predext_ascii.asc"), skip=6, na.string=-9999) ## species prediction using EXT covariates
+      temp1<-scan(paste0(wd, "Extremes_analyses/mammals_models/output/avg/full/",
+                         species.list.7AUC[i],"_predavg_ascii.asc"), skip=6, na.string=-9999) ## species prediction using AVG covariates
+      aa<-temp-temp1 ## difference in predictions between EXT and AVG approaches
+      rm(temp, temp1) ## remove original predictions (to save memory!)
+      
+      if (j==10) {df[,i]<-aa[dim.pred[j]:14177520]
+      }else{df[,i]<-aa[dim.pred[j]:(dim.pred[j+1]-1)]} 
+      ## this saves the predictions of each species within the corresponding chunck of the raster
+      rm(aa)
+      gc()
+      
+    }
+    
+    df.final.mean[,j]<-apply(df,1, FUN=mean) 
+    ### it calculates the mean change in predictions across species for each raster chunck and save these mean values 
+    ### as a column in the df.final.mean data frame which has 10 columns (one for each raster chunck)
+    
+    setTxtProgressBar(pb, j)
+}
+
+
+
+close(pb)      
+aa<-stack(df.final.mean[,1:10]); bb<-aa[,1];bb[is.na(bb)] <- -9999
+## it converts the data frame into a vector (stacking together the 10 columns of the df.final.mean data frame);
+## it converts NA into -9999
+
+
+
+anydat.makegrid(anydat= bb, want.grids= T, output.name= "mean",
+                filepath = "G:/", num.col = 4074, num.row = 3480, xll = 112.9, yll = -43.8, cell.size = 0.01, no.data = -9999, plot=F)
+
+## creates a grid with mean change in predictions across all species. It needs the information of the six heading columns of an ascii file
+## (in this case, the heading data from the ascii files I've used to run MaxEnt)
+
+```

@@ -1,0 +1,269 @@
+---
+title: "Calculate SDM uncertainty by vector for Lower Hunter"
+author: "Amy Whitehead"
+date: "Tuesday, September 02, 2014"
+output: html_document
+---
+
+
+1. Import std error & average sdms for each species
+2. Calculate coefficient of variation (std dev/mean)
+3. Add to raster stack
+4. Calculate mean taxonomic CV
+5. Calculate overall mean CV
+6. Save output
+7. Save RData file
+8. repeat for pre1750
+
+```{r setup}
+rm(list=ls())
+
+library(raster)
+
+
+#computer <- "~" #My computer
+# computer <- "Z:/Amy" #Super computer
+computer <- "//654cw-20990/Amy"
+# 
+region <- "Hunter"
+
+
+# directories
+# location of GH files
+ 
+  maxent.dir <- paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/")
+  taxa <- c("amphibians","birds","mammals","reptiles","plants")
+  clipping.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/GH_PM.clipping.mask.tif"))
+
+# Identify species with SDMs in the Lower Hunter
+protected.species <- read.csv(paste0(computer,"/GIS_data/Hunter/species point data/IBRA threatened species list.csv"))
+LH.protected.sp <- gsub(" ","_",protected.species$Scientific.Name[!is.na(protected.species$lower.hunter)])
+
+LH.sp <- read.table(paste0(computer,"/GIS_data/Hunter/zonation/lower hunter/LH.extant.zonation.spp"),sep="\t")
+  LH.sp <- LH.sp[grepl("SDM",LH.sp[,6]),6]
+#   LH.sp <- LH.sp[,6]
+  LH.sp <- gsub("_SDM.LH.tif|extant\\/","",LH.sp)
+
+LH.sp <- unique(c(as.character(LH.protected.sp),LH.sp))
+
+```
+
+```{r function to create a grid from a vector}
+
+anydat.makegrid <-
+  function(anydat, want.grids = F, preds2R = T, output.name = "preds", filepath = NULL, num.col = NULL, num.row = NULL, xll = NULL, yll = NULL, cell.size = NULL, no.data = NULL, plot=F, full.grid=T, part.number=NULL, part.row = NULL, header = T) 
+  {
+    anydat[is.na(anydat)] <- -9999
+    temp <- anydat
+    
+    if(want.grids)
+    {
+      newname <- paste(filepath, output.name,".asc", sep="")
+      full.pred <- anydat
+      if(header){
+        write(paste("ncols          ",num.col,sep=""),newname)
+        write(paste("nrows          ",num.row,sep=""),newname,append=T)
+        write(paste("xllcorner      ",xll,sep=""),newname,append=T)
+        write(paste("yllcorner      ",yll,sep=""),newname,append=T)
+        write(paste("cellsize       ",cell.size,sep=""),newname,append=T)
+        write(paste("NODATA_value ",no.data,sep=""),newname,append=T)
+      }
+      
+      if(full.grid){
+        full.pred <- anydat
+        full.pred.mat <- matrix(full.pred, nrow=num.row, ncol=num.col, byrow=T)
+        if (plot) 
+        {
+          image(z = t(full.pred.mat)[, nrow(full.pred.mat):1], zlim =  c(0,1), col = rainbow(12))
+        }
+        
+        write.table(full.pred.mat, newname, sep=" ", append=T, row.names=F, col.names=F)
+        
+        #also write to R directory, if required:
+        
+        if(preds2R){assign(output.name,temp, pos=1)}
+      }
+      
+      else{
+        full.pred.mat <- matrix(full.pred, nrow=part.row, ncol=num.col, byrow=T)
+        write.table(full.pred.mat, newname, sep=" ", append=T, row.names=F, col.names=F)
+        if(preds2R){assign(paste(output.name, part.number, sep=""),temp, pos=1)}
+      }
+      
+    }
+    
+    else{
+      assign(output.name,temp, pos=1)
+    }
+    
+  }
+
+````
+
+```{r calculate differences in predictions}
+
+#### VECTORS ####
+
+## First I read one model prediction -map- to know the length of the vector I'll get from reading the raster as a vector (reading by rows basically)
+n.chunks <- 20
+temp <- raster(paste0(maxent.dir,taxa[1],"/pre1750v2/CV/Adelotus_brevis_avg.asc"))
+n.cells <- length(temp)
+num.col <- dim(temp)[2]
+num.row <- dim(temp)[1]
+xll <- xmin(temp)
+yll <- ymin(temp)
+cell.size <- res(temp)[1]
+rm(temp)
+
+# append species list and remove poorly modelled species
+  poorly.modelled <- read.csv(paste0(maxent.dir,"DotE report - poorly modelled species.csv"))
+
+  all.species <- NULL
+  for(k in seq(taxa)){
+    species <- dir(paste0(maxent.dir,taxa[k],"/pre1750v2/CV/"),pattern="_avg.asc$",full.names = T)
+#       species <- species[!grepl("pre1750_avg",species)]
+      species <- setdiff(species,paste0(maxent.dir,taxa[k],"/pre1750v2/CV/",gsub(" ","_",poorly.modelled$Species),"_avg.asc"))
+      species <- intersect(species,paste0("//654cw-20990/Amy/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/",taxa[k],"/pre1750v2/CV/",LH.sp,"_avg.asc"))
+    
+    all.species <- append(all.species,species)
+    rm(species)
+  }
+     
+  dim.pred<-c(seq(1, n.cells, round(n.cells/n.chunks,0)),n.cells) ### length(temp)=14177520. I divide the raster -now vector- in 10 equal parts/chuncks of 1417752 elements each
+  
+  df.final.mean<-data.frame(matrix(nrow=dim.pred[2]-1, ncol=n.chunks+1))### It will accomodate the mean results in chuncks (columns)
+  df.final.median<-data.frame(matrix(nrow=dim.pred[2]-1, ncol=n.chunks+1))### It will accomodate the mean results in chuncks (columns)
+    
+  for (j in 1:length(dim.pred)){
+#     for (j in 2:length(dim.pred)){
+    cat("Summarising chunk",j,"\n")
+    df<-data.frame(matrix(nrow=dim.pred[2]-1, ncol=length(all.species))) ### data frame that will accomodate the data for each chunck of the original raster across all the 188 species
+      
+      pi <- txtProgressBar(min = 0, max = length(all.species), style = 3)  
+    
+      for (i in 1:length(all.species)) {## loop through all my species     
+        temp.avg<-scan(all.species[i], skip=6, na.string=-9999,quiet=T) ## species prediction using EXT covariates
+        temp.sd<-scan(gsub("avg","stddev",all.species[i]), skip=6, na.string=-9999,quiet=T) ## species prediction using AVG covariates
+        cv <- round((temp.sd/temp.avg)*10000,0) ## difference in predictions between EXT and AVG approaches
+        rm(temp.avg, temp.sd) ## remove original predictions (to save memory!)
+        
+        if (j==n.chunks) {
+          df[,i]<-c(cv[dim.pred[j]:n.cells],rep(NA,(nrow(df)-length(cv[dim.pred[j]:n.cells]))))
+        } else{
+          df[,i]<-cv[dim.pred[j]:(dim.pred[j+1]-1)]
+        } 
+        ## this saves the predictions of each species within the corresponding chunk of the raster
+        rm(cv)
+        gc()
+        
+        setTxtProgressBar(pi, i)
+      }
+      
+    close(pi)
+       
+      df.final.mean[,j]<-apply(df,1, FUN=mean)
+      df.final.median[,j]<-apply(df,1, FUN=median)
+      ### it calculates the mean change in predictions across species for each raster chunck and save these mean values 
+      ### as a column in the df.final.mean data frame which has 10 columns (one for each raster chunck)
+     save.image(paste0(maxent.dir,"temp_SDM_uncertainty.RData"))  
+  }
+```
+
+```{r combine differences}
+  
+  aa.mean<-stack(df.final.mean[,1:n.chunks])
+  bb.mean<-aa.mean[1:n.cells,1]
+  bb.mean[is.na(bb.mean)] <- -9999
+  
+  aa.median<-stack(df.final.median[,1:n.chunks])
+  bb.median<-aa.median[1:n.cells,1]
+  bb.median[is.na(bb.median)] <- -9999
+  ## it converts the data frame into a vector (stacking together the 10 columns of the df.final.mean data frame);
+  ## it converts NA into -9999
+
+
+
+anydat.makegrid(anydat= bb.mean, want.grids= T, output.name= "mean", filepath = maxent.dir, num.col=num.col, num.row=num.row, xll=xll, yll=yll, cell.size=cell.size, no.data = -9999, plot=F)
+
+mean.uncertainty <- raster(paste0(maxent.dir,"mean.asc"))/10000
+plot(mean.uncertainty)
+writeRaster(mean.uncertainty,paste0(maxent.dir,"mean.uncertainty_",Sys.Date(),".tif"),overwrite=T)
+
+anydat.makegrid(anydat= bb.median, want.grids= T, output.name= "median", filepath = maxent.dir, num.col=num.col, num.row=num.row, xll=xll, yll=yll, cell.size=cell.size, no.data = -9999, plot=F)
+
+median.uncertainty <- raster(paste0(maxent.dir,"median.asc"))/10000
+plot(median.uncertainty)
+writeRaster(median.uncertainty,paste0(maxent.dir,"median.uncertainty_",Sys.Date(),".tif"),overwrite=T)
+## creates a grid with mean change in predictions across all species. It needs the information of the six heading columns of an ascii file
+## (in this case, the heading data from the ascii files I've used to run MaxEnt)
+
+save.image(paste0(maxent.dir,"temp_SDM_uncertainty.RData"))
+
+```
+
+```{r spatial uncertainty plots}
+library(fields)
+library(maptools)
+
+  GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+  GH.shp <- hccrem.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Hunter/Plans/HCCREMS_AreaOfInterest/HCCREMS_AoI.shp", proj4=GDA94)
+    GH.shp <- spTransform(GH.shp,GDA94.56)
+  LH.shp <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Hunter/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/LHRS_Study_Area.shp", proj4=GDA94.56)
+
+LH.clipping.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/LH.clipping.mask.tif"))
+
+date <- '2015.01.09'
+
+uncertainties <- stack(dir(maxent.dir,pattern="mean.uncertainty|median.uncertainty",full.names=T))
+  uncertainties <- uncertainties[[which(grepl(date,names(uncertainties)))]]
+#   extent(uncertainties) <- extent(clipping.mask) 
+  uncertainties<- mask(uncertainties,clipping.mask)
+
+summary.cv <- as.data.frame(summary(uncertainties))
+  summary.cv$statistic <- row.names(summary.cv)
+  summary.cv <- rbind(summary.cv,c(cellStats(uncertainties[[which(grepl("mean",names(uncertainties)))]],mean),cellStats(uncertainties[[which(grepl("median",names(uncertainties)))]],mean),"mean"))
+  summary.cv <- rbind(summary.cv,c(cellStats(uncertainties[[which(grepl("mean",names(uncertainties)))]],sd),cellStats(uncertainties[[which(grepl("median",names(uncertainties)))]],sd),"sd"))
+
+LH.uncertainties <- mask(crop(uncertainties,LH.clipping.mask),LH.clipping.mask)
+
+LH.summary.cv <- as.data.frame(summary(LH.uncertainties))
+  LH.summary.cv$statistic <- row.names(LH.summary.cv)
+  LH.summary.cv <- rbind(LH.summary.cv,c(cellStats(LH.uncertainties[[which(grepl("mean",names(LH.uncertainties)))]],mean),cellStats(LH.uncertainties[[which(grepl("median",names(LH.uncertainties)))]],mean),"mean"))
+  LH.summary.cv <- rbind(LH.summary.cv,c(cellStats(LH.uncertainties[[which(grepl("mean",names(LH.uncertainties)))]],sd),cellStats(LH.uncertainties[[which(grepl("median",names(LH.uncertainties)))]],sd),"sd"))
+
+simpleCap <- function(x) {
+  s <- strsplit(x, " ")[[1]]
+  paste(toupper(substring(s, 1,1)), substring(s, 2),
+      sep="", collapse=" ")
+}
+
+
+png(paste0(maxent.dir,"mean uncertainty_",date,".png"),width=15,height=10,units="cm",res=300,pointsize=12,bg="transparent")
+  par(mfrow=c(1,1),mar=c(0,0,0,0),oma=c(0,0,0,0))
+  mean.range.cv <- c(summary.cv[1,paste0("mean.uncertainty_",date)],summary.cv[5,paste0("mean.uncertainty_",date)])
+  
+  plot(uncertainties[[which(grepl("mean",names(uncertainties)))]],axes=F,box=F,legend=F,col=rev(grey((1:90)/100)),zlim=mean.range.cv)
+    image.plot(legend.only=TRUE,zlim=mean.range.cv, nlevel=100, col=rev(grey((1:90)/100)),axis.args=list(at=mean.range.cv, labels=c(paste0("Low","\n","(CV=",round(mean.range.cv[1],2),")"),paste0("High","\n","(CV=",round(mean.range.cv[2],2),")")), cex.axis=0.7,adj=0.5),legend.args=list(text='Predictive uncertainty', side=2, font=2, line=0.75, cex=0.7),legend.width=0.55,legend.shrink=0.5)
+#     plot(GH.shp, add=T)
+    plot(LH.shp, add=T)
+    
+dev.off()
+
+png(paste0(maxent.dir,"median uncertainty_",date,".png"),width=15,height=10,units="cm",res=300,pointsize=12,bg="transparent")
+  par(mfrow=c(1,1),mar=c(0,0,0,0),oma=c(0,0,0,0))
+  mean.range.cv <- c(summary.cv[1,paste0("median.uncertainty_",date)],summary.cv[5,paste0("median.uncertainty_",date)])
+  
+  plot(uncertainties[[which(grepl("median",names(uncertainties)))]],axes=F,box=F,legend=F,col=rev(grey((1:90)/100)),zlim=mean.range.cv)
+    image.plot(legend.only=TRUE,zlim=mean.range.cv, nlevel=100, col=rev(grey((1:90)/100)),axis.args=list(at=mean.range.cv, labels=c(paste0("Low","\n","(CV=",round(mean.range.cv[1],2),")"),paste0("High","\n","(CV=",round(mean.range.cv[2],2),")")), cex.axis=0.7,adj=0.5),legend.args=list(text='Predictive uncertainty', side=2, font=2, line=0.75, cex=0.7),legend.width=0.55,legend.shrink=0.5)
+#     plot(GH.shp, add=T)
+    plot(LH.shp, add=T)
+    
+dev.off()
+
+
+clipped.mean.uncertainty <- mask(crop(mean.uncertainty,pp.shp),pp.shp)
+clipped.mean.uncertainty.summary <- cellStats(clipped.mean.uncertainty,summary)/10000
+
+
+```

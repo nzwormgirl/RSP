@@ -1,0 +1,65 @@
+---
+title: "BRT modelling for tecs"
+author: "Amy Whitehead"
+date: "Wednesday, July 09, 2014"
+output: html_document
+---
+
+
+```{r setup}
+rm(list=ls())
+
+packages(raster)
+packages(dismo)
+computer <- "//654cw-20990/Amy/"
+computer <- "Z:/"
+#source("C:/Users/awhitehead/Dropbox/Random R code/pete's correlation matrix.r")
+
+
+envi <- stack(dir(paste0(computer,"GIS_data/Hunter/Maxent_files/ghm.pm/environmental_data/standardised_rasters/"),pattern=".asc$",full.names=T))
+
+brt.data <- read.csv(paste0(computer,"/GIS_data/Hunter/maxent_files/species_data/brt.data_tecs.csv"))
+  brt.data <- brt.data[complete.cases(brt.data),]
+  brt.data[,c("sb_amphibians","sb_birds","sb_mammals","sb_plants","sb_reptiles")] <- list(NULL)
+
+#correlations(brt.data[,5:ncol(brt.data)],threshold=0.8)
+
+brt.data[,c("altitude","nutrients","cold_temp","hot_temp","mean_solar","ruggedness","roughness")] <- list(NULL)
+
+```
+
+
+
+```{r run brts}
+tecs <- unique(brt.data$tec)
+
+for(i in seq(tecs)){
+  tec.data <- brt.data
+    tec.data$pa[tec.data$tec==tecs[i]] <- 1
+ 
+  tec <- gbm.step(data=tec.data, 
+    gbm.x = c(5:ncol(tec.data)),
+    gbm.y = 4,
+    family = "bernoulli",
+    tree.complexity = 3,
+    learning.rate = 0.003,
+    bag.fraction = 0.75)
+
+  tec$contributions
+  
+p <- predict(envi, tec, n.trees=tec$gbm.call$best.trees, type="response")
+
+plot(p,main=tecs[i])
+  points(tec.data$x[tec.data$pa==0],tec.data$y[tec.data$pa==0],pch=".")
+  points(tec.data$x[tec.data$pa==1],tec.data$y[tec.data$pa==1],pch="+",col="red")
+
+assign(paste0("gbm.",tecs[i]),tec)
+assign(paste0("predict",tecs[i]),p)
+rm(tec.data)
+  
+}
+
+
+
+```
+

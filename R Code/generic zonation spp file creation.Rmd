@@ -1,0 +1,29 @@
+---
+title: "Create zonation species file"
+author: "Amy Whitehead"
+date: "Wednesday, September 17, 2014"
+output: html_document
+---
+
+```{r setup}
+rm(list=ls())
+
+# define paths for input and output files
+input_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/')
+output_path <- paste0(computer,'/GIS_data/Perth-Peel/zonation/100m/')
+
+# empty zonation format
+zonation.spp <- d(weight=1.0, alpha=1.0, bqp.row=1.0, bqp.buffer=1.0, cell.removal=1.0)
+
+# identify species rasters in your input folder
+species <- dir(input_path,pattern=".tif$")
+
+# combine the zonation and species data
+spp.file <- d(zonation.spp, species = species)
+
+# save as a .spp file
+write.table(spp.file,paste0(output_path,"ppsa.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+
+```
+
+

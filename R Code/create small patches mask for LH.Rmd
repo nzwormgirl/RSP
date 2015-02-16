@@ -1,0 +1,88 @@
+---
+title: "Make a woody vegetation layer for LH"
+author: "Amy Whitehead"
+date: "Wednesday, November 26, 2014"
+output: html_document
+---
+
+```{r setup}
+rm(list=ls())
+
+library(maptools)
+library(raster)
+packages(SDMTools)
+library(dplyr)
+source("C:/Users/awhitehead/Dropbox/Random R code/shp2raster.R")
+
+# computer <- "Z:/Amy" #Super computer
+computer <- "//654cw-20990/Amy"
+
+# location of LH files
+  LH.zonation.dir <- paste0(computer,"/GIS_data/Hunter/zonation/lower hunter/Output/") 
+
+GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+# import region mask for LHSA
+ LH.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/LH.mask.tif"))
+  LH.mask[!is.na(LH.mask)] <- 0
+
+# LHSA urban clipping mask
+  LH.urban.clipping.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/LH.urban.clipping.mask.tif"))
+    LH.urban.clipping.mask[!is.na(LH.urban.clipping.mask)] <- 0
+
+# LHSA clipping mask
+  LH.clipping.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/LH.clipping.mask.tif"))
+    LH.clipping.mask[!is.na(LH.clipping.mask)] <- 0
+
+# LH.veg <- shapefile("~/GIS_data/Hunter/All data from harddrive/From OEH/LHVM_Final_PB_OEH.shp")
+
+LH.patches <- raster("~/GIS_data/Scratch/LH.patches_by_id.tif")
+LH.patches.shp <- shapefile("~/GIS_data/Scratch/LH.veg_patches1.shp")
+
+weighted.priority <- raster(paste0(LH.zonation.dir,"output_LH_weighted_040215.rank.compressed.tif"))
+
+protected.areas <- raster(paste0(computer,"/GIS_data/Hunter/zonation/lower hunter/masks/ProtectedAreas_v4.tif"))
+  protected.areas[protected.areas==3] <- 1
+  protected.areas[protected.areas!=1] <- 0
+```
+
+```{r generate patches & calculate areas}
+
+LH.patches <- mask(LH.patches,LH.clipping.mask)
+
+patch.area <- PatchStat(LH.patches,cellsize=100)
+
+test <- cbind(priority = extract(weighted.priority,extent(LH.clipping.mask)),patch.id= extract(LH.patches,extent(LH.clipping.mask)))
+  test <- as.data.frame(test[complete.cases(test),])
+  test$area <- patch.area$area[match(test$patch.id,patch.area$patchID)]
+
+size <- c(100000,200000,400000)
+
+for(i in seq(size)){
+  small.patches <- test$patch.id[test$area<=size[i]]
+
+  patch.mask <- LH.patches
+
+  for(j in seq(small.patches)){
+    patch.mask[patch.mask==small.patches[j]] <- 9999
+  }
+  
+  patch.mask[patch.mask!= 9999] <- 4
+  patch.mask[patch.mask!= 4] <- i
+  
+  assign(paste0("patch.mask.",size[i]/10000),patch.mask)
+}
+
+patch.mask <- min(patch.mask.10,patch.mask.20,patch.mask.40)*protected.areas
+  patch.mask[patch.mask==0] <- 4
+
+# hack to get the same number of cells (not sure why it isn't to start with)
+  r<- LH.clipping.mask
+  r[!is.na(r)] <- 4
+
+  patch.mask <- merge(patch.mask,r)
+
+writeRaster(patch.mask,paste0(computer,"/GIS_data/Hunter/zonation/lower hunter/masks/small.patches.mask.tif"),overwrite=T)
+
+```

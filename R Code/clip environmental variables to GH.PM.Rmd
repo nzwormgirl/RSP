@@ -1,0 +1,61 @@
+
+
+```{r}
+rm(list=ls())
+library(rgdal)
+library(raster)
+source("C:/Users/awhitehead/Dropbox/Random R code/shp2raster.R")
+
+GDA94 <- CRS("+proj=longlat +ellps=WGS84 +towgs84=0,0,0,0,0,0,0 +no_defs")
+GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +units=m +no_defs")
+
+GH.PM.mask <- raster("~/GIS_data/Hunter/mask files/GH_PM.mask.tif")
+
+```
+
+```{r soils}
+setwd("~/GIS_data/Australia-wide/soils/")
+soil.rasters <- stack(dir("~/GIS_data/Australia-wide/soils/",pattern=".asc$",full.names=T))
+wii_1km <- raster("~/GIS_data/Australia-wide/wii_1km/wii_1km/wiioz2_w1k3e")  
+
+soil.rasters <- stack(soil.rasters,wii_1km)
+
+soil.rasters <- crop(projectRaster(soil.rasters,GH.PM.mask),GH.PM.mask)
+
+soil.shp <- readOGR(dsn=".",layer="soilAtlas2M")
+  soil.shp <- shp2raster(soil.shp,GH.PM.mask,value=soil.shp$MAP_UNIT,transform=T,proj.from=GDA94,proj.to=GDA94.56,save=F,mask=F,bkg=0,label="soilAtlas2M")
+
+soil.rasters <- mask(stack(soil.rasters,soil.shp),GH.PM.mask)
+
+writeRaster(soil.rasters,filename="~/GIS_data/Hunter/Maxent_files/ghm.pm_environmental_data/soils/",bylayer=T,format="GTiff",suffix=names(soil.rasters))
+```
+
+```{r climate}
+climate.dir <- "~/GIS_data/Australia-wide/anuclim/" 
+setwd(climate.dir)
+  anuclim <- c("aus01","aus10","aus11","aus12","aus15","aus20")
+climate.rasters <- stack(lapply(paste0(climate.dir,anuclim),raster))
+  climate.rasters <- mask(crop(projectRaster(climate.rasters,GH.PM.mask),GH.PM.mask),GH.PM.mask)
+
+writeRaster(climate.rasters,filename="~/GIS_data/Hunter/Maxent_files/ghm.pm_environmental_data/climate/",bylayer=T,format="GTiff",suffix=c("mean_temp","hot_temp","cold_temp","mean_rain","seasonal_rain","mean_solar"))
+
+```
+
+
+```{r topography}
+topography.dir <- dir("~/GIS_data/Hunter/Maxent_files/ghm.pm_environmental_data/topography/large/",pattern=".tif$")
+topo.rasters <- stack(lapply(paste0("~/GIS_data/Hunter/Maxent_files/ghm.pm_environmental_data/topography/large/",topography.dir),raster))
+
+topo.rasters <- mask(resample(crop(topo.rasters,GH.PM.mask),GH.PM.mask),GH.PM.mask)
+
+writeRaster(topo.rasters,filename="~/GIS_data/Hunter/Maxent_files/ghm.pm_environmental_data/topography/",bylayer=T,format="GTiff",suffix=names(topo.rasters))
+```
+
+```{r distance to water}
+setwd("~/GIS_data/Australia-wide/")
+water.rasters <- stack(lapply(c("distpermwat","distanywater","distnonpermw","distcoast","erosional"),raster))
+
+water.rasters <- mask(crop(projectRaster(water.rasters,GH.PM.mask),GH.PM.mask),GH.PM.mask)
+
+writeRaster(water.rasters,filename="~/GIS_data/Hunter/Maxent_files/ghm.pm_environmental_data/water/",bylayer=T,format="GTiff",suffix=names(water.rasters))
+```

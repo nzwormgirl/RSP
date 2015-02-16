@@ -1,0 +1,123 @@
+---
+title: "Reclassify pre1750 vegetation"
+author: "Amy Whitehead"
+date: "Thursday, August 07, 2014"
+output: html_document
+---
+Reclassify the pre1750 vegetation data and combine with final extant vegetation for GH & PM
+
+1. Import GH.PB merged vegetation map
+  * Identify the values associated with each formation
+2. Import HV pre1750 vegetation map
+3. Link LHCCREMS veg codes to Keith Formations
+ * Work out what to do with the MU_NAME that aren't associated with Keith Formations
+ * Modify Keith Formations to match those used in the other layers
+4. Convert pre1750 as raster for future use
+ * Assign mosaic raster values
+5. Merge GH.PM vegetation with LHCCREMS pre1750 layer
+6. Export merged raster
+
+Subsequent steps
+7. Regenerate all percentage cover variables
+# 8. Standardise all enviromental variables
+# 9. Check unreliable keith formations with Mary
+# 10. Rerun MaxEnt models (potentially excluding buffered variables that have low reliability based on John Hunter's analysis)
+
+```{r setup}
+rm(list=ls())
+output.directory <- "~/GIS_data/Hunter/vegetation/"
+
+setwd(output.directory)
+
+packages(raster)
+packages(rgdal)
+packages(maptools)
+source("C:/Users/awhitehead/Dropbox/Random R code/shp2raster.r")
+
+# set projections
+  GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+greater.hunter <- raster("~/GIS_data/Hunter/mask files/GH_PM.mask.tif")
+lower.hunter <- raster("~/GIS_data/Hunter/mask files/LH.mask.tif")
+
+# GH & PM merged vegetation
+  GH.PM.veg <- raster("~/GIS_data/Hunter/Maxent_files/ghm.pm/environmental_data/vegetation/final_vegetation.tif")
+  ghm.veg.reclass <- read.csv("ghm_veg_reclassify.csv")
+
+# Pre 1750 LHCCREMS data
+  pre1750.shp <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/Pre1750V03/ArcView/lhcc_pre1750veg.shp",proj4=CRS("+proj=utm +zone=56 +south +ellps=aust_SA +units=m +no_defs"),delete_null_obj=TRUE, force_ring=TRUE)
+    pre1750.shp$Amy_KeithF <- NA
+    pre1750.shp$KForm_raster <- NA
+
+# Final Lower Hunter data from OEH
+  OEH.veg <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From OEH/LHVM_Final_PB_OEH.shp")
+
+# extract LHCCREM veg codes for each Keith Formation
+  formations <- unique(OEH.veg$KeithForm)  
+
+  for(i in seq(formations)){
+    codes <- unique(OEH.veg$LHCCREMS_E[grepl(formations[i],OEH.veg$KeithForm)])
+      codes <- codes[!is.na(codes)]
+    for(j in seq(codes)){
+      pre1750.shp$Amy_KeithF[grepl(codes[j],pre1750.shp$MAP_UNIT)] <- as.character(formations[i])
+    }
+  }
+  
+  missing <- unique(pre1750.shp$MU_NAME[is.na(pre1750.shp$Amy_KeithF)])
+  
+  for (i in seq(missing)){
+    try(pre1750.shp$Amy_KeithF[(grepl(missing[i],pre1750.shp$MU_NAME) & is.na(pre1750.shp$Amy_KeithF))] <- paste(as.character(unique(OEH.veg$KeithForm[grepl(missing[i],OEH.veg$LHCCREMS_1)])),collapse=","),silent = T)
+  }
+  pre1750.shp$Amy_KeithF[grepl("NA",pre1750.shp$Amy_KeithF)|pre1750.shp$Amy_KeithF==""] <- NA
+  
+  missing <- unique(pre1750.shp$MU_NAME[is.na(pre1750.shp$Amy_KeithF)])
+  
+  for (i in seq(missing)){
+    try(pre1750.shp$Amy_KeithF[(grepl(missing[i],pre1750.shp$MU_NAME) & is.na(pre1750.shp$Amy_KeithF))] <- paste(as.character(unique(OEH.veg$KeithForm[grepl(missing[i],OEH.veg$VegCommNam)])),collapse=","),silent = T)
+  }
+  pre1750.shp$Amy_KeithF[grepl("NA",pre1750.shp$Amy_KeithF)|pre1750.shp$Amy_KeithF==""] <- NA
+  
+  missing <- unique(pre1750.shp$MU_NAME[is.na(pre1750.shp$Amy_KeithF)])
+
+# fill in the gaps manually
+  pre1750.shp$Amy_KeithF[grepl("Scribbly Gum - Dwarf Apple Woodland|Dharug Roughbarked Apple Forest",pre1750.shp$MU_NAME)] <- "Dry sclerophyll forests (shrubby sub-formation)"
+  pre1750.shp$Amy_KeithF[grepl("Sandstone Ranges Warm Temperate Rainforest",pre1750.shp$MU_NAME)] <- "Rainforests"
+  pre1750.shp$Amy_KeithF[grepl("Seagrass",pre1750.shp$MU_NAME)] <- "Forested Wetlands"
+  pre1750.shp$Amy_KeithF[grepl("Heath",pre1750.shp$MU_NAME, fixed=T)] <- "Dry sclerophyll forests"
+  pre1750.shp$Amy_KeithF[grepl("Sand|Beach sands|Rocky Coast|Water",pre1750.shp$MU_NAME, fixed=T)] <- NA
+
+  missing <- unique(pre1750.shp$MU_NAME[is.na(pre1750.shp$Amy_KeithF)])
+  unique(pre1750.shp$Amy_KeithF)
+
+pre1750_reclassify <- read.csv("lhcc_pre1750veg_reclassify.csv")
+  pre1750_reclassify <- pre1750_reclassify[!is.na(pre1750_reclassify$KeithForm),]
+
+for(i in seq(pre1750_reclassify$KeithForm)){
+  pre1750.shp$KForm_raster[grepl(pre1750_reclassify$Mosiac[i],pre1750.shp$Amy_KeithF,ignore.case=T)] <- pre1750_reclassify$Mosiac_num[grepl(pre1750_reclassify$Mosiac[i],pre1750_reclassify$Mosiac)][1]
+}
+
+# writePolyShape(pre1750.shp,"~/GIS_data/Hunter/All data from harddrive/Pre1750V03/ArcView/lhcc_pre1750veg")
+
+unique(pre1750.shp$Amy_KeithF)
+unique(OEH.veg$KeithForm)
+
+pre1750.veg <- shp2raster(pre1750.shp,greater.hunter,label = "pre1750",value = pre1750.shp$KForm_raster,bkg=0,transform = T,proj.to = GDA94.56)
+
+  # merge the lower and greater hunter vegetation data together, placing the lower hunter data on top
+  final.pre1750.veg <- mask(crop(merge(GH.PM.veg,pre1750.veg),greater.hunter),greater.hunter)
+
+  # add the raster attributes to the table
+  raster.attributes <- pre1750_reclassify[!duplicated(pre1750_reclassify$Mosiac_num)& !is.na(pre1750_reclassify$Mosiac_num),c(ID="Mosiac_num",Kformation="Mosiac")]
+    colnames(raster.attributes) <- c("ID","Kformation")
+    raster.attributes <- raster.attributes[order(raster.attributes$ID),]
+    write.csv(raster.attributes, "~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/vegetation/vegetation_attributes.csv", row.names=F)
+  
+  levels(pre1750.veg) <- raster.attributes
+  levels(final.pre1750.veg) <- raster.attributes
+
+writeRaster(final.pre1750.veg,filename="~/GIS_data/Hunter/Maxent_files/ghm.pm/environmental_data/vegetation/pre1750/final_pre1750_vegetation.tif", overwrite=TRUE, datatype='INT1U')
+
+```
+
+
