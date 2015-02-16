@@ -26,7 +26,7 @@ GH.shp <- readOGR(dsn=".",layer="HCCREMS_AoI")
   GH.shp <- spTransform(GH.shp,CRSobj=GDA94.56)
 
 gh.raster <- raster("~/GIS_data/Hunter/mask files/GH.mask.tif")
-  writeRaster(gh.raster, "~/GIS_data/Hunter/mask files/GH.mask_old.tif")
+  #writeRaster(gh.raster, "~/GIS_data/Hunter/mask files/GH.mask.tif",overwrite=T)
   gh.raster <- extend(gh.raster,c(197142,497753.4,6282948,6557576))
   gh.raster[!is.na(gh.raster)] <- 1
   gh.raster[is.na(gh.raster)] <- 0
@@ -35,7 +35,7 @@ gh.raster <- raster("~/GIS_data/Hunter/mask files/GH.mask.tif")
     GH_PM <- sum(gh.raster,GH_PM)
     GH_PM[GH_PM==0] <- NA
     GH_PM[!is.na(GH_PM)] <- 0
-  writeRaster(GH_PM,"~/GIS_data/Hunter/mask files/GH.mask.tif",format="GTiff",overwrite=T)
+  writeRaster(GH_PM,"~/GIS_data/Hunter/mask files/GH_PM.mask.tif",format="GTiff",overwrite=T)
 
 ```
 

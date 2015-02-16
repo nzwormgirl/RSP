@@ -6,8 +6,9 @@ library(raster)
 library(lattice)
 packages(gridExtra)
 
-computer <- "~" #My computer
+# computer <- "~" #My computer
 #computer <- "Z:/Amy" #Super computer
+computer <- "//654cw-20990/Amy"
 
 # set projections
   GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
@@ -59,5 +60,36 @@ dev.off()
 tiff("patchsize.4000_conservationpriority.tif",res=300,compression="lzw",width=15,height=10,units="cm",pointsize=10)
   bwplot(GH.rank.values~GH_patch.size.4000.class,pch="|",ylab="Conservation priority",xlab="Native vegetation cover within 4km buffer (%)",scales=list(x=list(at= seq(0.5,10.5,by=1), labels=format(as.character(seq(0,100,by=10))))),page = pgfun("")) 
 dev.off()
+
+```
+
+```{r LH output}
+# import LH rank file
+  LH.rank <- raster(paste0(computer,"/GIS_data/Hunter/zonation/lower hunter/Output/output_LH_weighted_040215.rank.compressed.tif"))
+    LH.rank.values <- extract(LH.rank,extent(LH.rank))
+
+# import patch size files
+  patch.size <- dir(paste0(computer,"/GIS_data/Hunter/mask files/"),"GH_patch.size")
+
+# function for labelling lattice plots
+  pgfun <- function(mark) function(n) grid.text(label = mark, just = c("left", "center"), x = unit(0.05, "npc"), y = unit(0.975, "npc"))
+ 
+  for(i in seq(patch.size)){
+    ps <- mask(crop(raster(paste0(computer,"/GIS_data/Hunter/mask files/",patch.size[i])),LH.rank),LH.rank)
+        ps.values <- extract(ps,extent(LH.rank))
+#     assign(paste0(names(ps),".values"),ps.values)
+    
+    ps.class <- cut(ps.values, seq(0,100,by=10), include.lowest = TRUE)
+      assign(paste0(names(ps),".class"),ps.class)
+     
+    bwplot(LH.rank.values~ps.class,ylab="Conservation priority",xlab="% remnant vegetation",page = pgfun(names(ps)))
+ rm(ps,ps.class,ps.values)
+    
+  }
+
+png(paste0(computer,"/GIS_data/Hunter/zonation/lower hunter/Output/patchsize.2000_conservationpriority.png"),res=300,width=15,height=10,units="cm",pointsize=10, bg="transparent")
+  bwplot(LH.rank.values~veg.2000GH_patch.size.class,pch="|",ylab="Conservation priority",xlab="Native vegetation cover within 2km buffer (%)",scales=list(x=list(at= seq(0.5,10.5,by=1), labels=format(as.character(seq(0,100,by=10))))),page = pgfun("")) 
+dev.off()
+
 
 ```

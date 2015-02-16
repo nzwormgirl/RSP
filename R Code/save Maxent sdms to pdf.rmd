@@ -6,42 +6,45 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r load_data}
-rm(list=ls())
-library(raster)
-library(maptools)
+  rm(list=ls())
+  library(raster)
+  library(maptools)
+  library(plotrix)
+  library(fields)
+  
+  maxent.dir <- c("//654cw-20990/Amy/GIS_data/Hunter/Maxent_files/")
+  zonation.dir <- c("//654cw-20990/Amy/GIS_data/Hunter/zonation/greater hunter/extant/")
 
-# maxent.dir <- c("//654cw-20990/Users/awhitehead/Documents/RSP/data/Maxent_files")
-zonation.dir <- c("~/GIS_data/Hunter/zonation/greater hunter/")
+# set projections
+  GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 
-maxent.dir <- "~/GIS_data/Hunter/Maxent_files"
+  threatened.sp <- read.csv("//654cw-20990/Amy/GIS_data/Hunter/species point data/IBRA threatened species list.csv")
 
-threatened.sp <- read.csv("~/GIS_data/Hunter/species point data/IBRA threatened species list.csv")
+  asc.files <- dir(zonation.dir, pattern=".tif$")
 
-asc.files <- dir(zonation.dir, pattern=".tif$")
+  GH.mask <- raster("//654cw-20990/Amy/GIS_data/Hunter/mask files/GH.mask.tif")
 
-region.mask <- raster(paste0(zonation.dir,asc.files[1]))
-  proj4string(region.mask) <- "+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
-
-species.data <- read.csv(paste0(maxent.dir,"/species_data/maxent.data_ALA.NSW.csv"))
+species.data <- read.csv(paste0(maxent.dir,"ghm.pm/species_data/maxent.data_ALA.NSW.csv"))
+  colnames(species.data) <- c("easting","northing","species") 
   coordinates(species.data) <- c("easting","northing")
-  proj4string(species.data) <- "+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+  proj4string(species.data) <- GDA94.56
 
-  species.data$veg <- extract(region.mask,species.data)
+  species.data$veg <- extract(GH.mask,species.data)
   species.data <- as.data.frame(species.data)
   species.data <- species.data[!is.na(species.data$veg),]
   
 
+# LGA boundaries for plotting on map
+  lga <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/HUNTER_REG_cadastral_2012-08-01/shape_processed_LL-GDA94/administrative/localgovernmentarea_GH.shp",proj4string=GDA94)
+    lga <- spTransform(lga, GDA94.56)
 
-lga <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/HUNTER_REG_cadastral_2012-08-01/shape_processed_LL-GDA94/administrative/localgovernmentarea_GH.shp")
-  proj4string(lga) <- "+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs"
-  lga <- spTransform(lga, CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"))
-
-newcastle <- d(easting=386288.67,northing=6355926.73)
+  newcastle <- d(easting=386288.67,northing=6355926.73)
   coordinates(newcastle) <- c("easting","northing")
 
 taxa <- c("mammals", "amphibians", "plants", "birds", "reptiles")
 
-modelled.species <- threatened.sp[!is.na(threatened.sp$sdm),]
+modelled.species <- threatened.sp[!is.na(threatened.sp$GH.sdm),]
 
 ```
 
@@ -50,36 +53,210 @@ You can also embed plots, for example:
 ```{r create pdf files}
 setwd(zonation.dir)
 
-for(k in seq(taxa)){
+  for(k in seq(taxa)){
+    maxentResults.CV <- read.csv(paste0(maxent.dir,"/ghm.pm/all_variables/output/",taxa[k],"/pre1750v2/CV/MaxentResults.csv"))
+    maxentResults.CV <- maxentResults.CV[grepl("average",maxentResults.CV$Species),]
+    
+   maxentResults.Full <- read.csv(paste0(maxent.dir,"/ghm.pm/all_variables/output/",taxa[k],"/pre1750v2/Full/MaxentResults.csv"))
   
-  sp.list <- modelled.species$Scientific.Name[modelled.species$Taxa==taxa[k]]
+   parameters <- c("Species","X.Training.samples","Test.AUC","AUC.Standard.Deviation",names(maxentResults.Full[grepl("permutation.importance",names(maxentResults.Full))]))
+  
+  maxentResults.CV <- maxentResults.CV[,names(maxentResults.CV) %in% as.character(parameters[c(1,3:4)])]
+  
+  maxentResults.Full <- maxentResults.Full[,names(maxentResults.Full) %in% as.character(parameters[c(2,5:14)])]
+  
+  maxent.results <- cbind(maxentResults.CV,maxentResults.Full)
+    names(maxent.results) <- gsub("X\\.|X|.permutation.importance","",names(maxent.results))
+    maxent.results$Species <- gsub("_"," ",gsub(" \\(average\\)","",maxent.results$Species))
+        
+    parameters <- colnames(maxent.results)
+      parameters <- parameters[grepl(".permutation",parameters)]
+    
+    family <- unique(modelled.species$Family[modelled.species$Taxa==taxa[k]])
+      family <- family[order(family)]
+    
+    cat("\n","\n","Generating pdf for",  taxa[k],"\n")
+      pdf(paste0(taxa[k],"_Modelled species_v2.pdf"),paper="a4r",width=0,height=0)
+        page <- 1
+    
+    for(j in seq(family)){
+      sp.list <- modelled.species$Scientific.Name[modelled.species$Taxa==taxa[k] & modelled.species$Family==family[j]]
+      cat("\n"," Family:",as.character(family[j])) 
+      
+        for(i in 1:length((sp.list))){
+          sp <- gsub(" ","_",sp.list[i])
+          try({
+            r <- raster(paste0(zonation.dir,sp,"_SDM_GH.tif"))
+            species <- names(r)
+              species <- gsub("_"," ",species)
+              species <- gsub(" SDM| GH","",species)
+            sp.points <- species.data[species.data$species==species,c("x","y")]
+            
+            results <- maxent.results[maxent.results$Species==species,]
+              if(nrow(results)>0){
+                results <- round(results[,c("Test.AUC","AUC.Standard.Deviation",as.character(parameters))],2)
+                colnames(results) <- gsub("X|.permutation.importance","",colnames(results))
+                results <- cbind(N=nrow(sp.points),AUC=paste0(results$Test.AUC," (",results$AUC.Standard.Deviation,")"), results)
+                results <- results[,colnames(results)!=c("Test.AUC") & colnames(results)!=c("AUC.Standard.Deviation")]
+                results <- t(results)
+              }
+              
+            par(xpd=NA,mar=c(2,7,2,2.5))
+            plot(r/1000, legend=F, axes=F,box=F, zlim=c(0,1),xlim=c(197142,581642),ylim=c(6282948,6521148))
+#               arg <- list(at=c(0,0.5,1), labels=c("0.0","0.5","1.0"),cex.axis=0.75)
+              image.plot(r/1000, legend.only=T, box=F, zlim=c(0,1),lab.breaks=c("0.0","0.5","1.0"),legend.shrink=0.3,legend.width=1,col=rev(terrain.colors(100)),cex.axis=0.75)
+              plot(lga,add=T, border="grey")
+          #   points(newcastle, pch=16,cex)
+           
+            points(sp.points,pch=".",col="black")
+            mtext(side=3,line=1,font=3,species)
+            mtext(side=3,line=1,paste0(toupper(taxa[k]),": ",family[j]),adj=0,cex=0.75)
+            mtext(side=1,line=1,page,adj=1,cex=0.75)
+            
+         if(nrow(results)>0){ 
+           addtable2plot(150000,6322948,table=results,display.rownames=T,display.colnames=F,cex=0.7,yjust=0.5,xjust=0,bg=NA)
+          }
 
-  cat("\n","\n","Generating pdf for", taxa[k])
-  pdf(paste0(taxa[k],"_Modelled species.pdf"),paper="a4r")
-   
-    for(i in seq(sp.list)){
-      sp <- gsub(" ","_",sp.list[i])
-      r <- raster(paste0(sp,".tif"))
-      species <- names(r)
-        species <- gsub("_"," ",species)
-      sp.points <- species.data[species.data$species==species,c("easting","northing")]
-      
-#       brk <- seq(0,1000,by=100)
-     
-#      plot(r, breaks=brk, col=rev(terrain.colors(10)), legend=F, main=species, ylab="Northing",xlab="Easting")
-#       plot(r/1000, breaks=brk/1000, col=rev(terrain.colors(10)), legend.only=T, box=F)
-      
-       plot(r/1000, legend=F, main=species, ylab="Northing",xlab="Easting", zlim=c(0,1))
-      plot(r/1000, legend.only=T, box=F, zlim=c(0,1))
-      plot(lga,add=T, border="grey")
-    #   points(newcastle, pch=16,cex)
-     
-      points(sp.points,pch=".",col="grey35")
-      cat("\n","Plotting",species,"to pdf")
-    }
-  
-  dev.off()
-   }
+          cat("\n","  Plotting",species,"to pdf")
+          page <- page + 1
+          })
+        }
+      }
+    
+    dev.off()
+     }
 
 ```
 
+```{r pdf tecs}
+
+  tec.data <- read.csv("//654cw-20990/Amy/GIS_data/Hunter/species point data/GreaterHunter_DRAFT_100812 (2).csv")
+    tec.data <- tec.data[!duplicated(tec.data$TEC_Amy),c("TEC_Amy","MUcodes","points", "LH.points","LH.sdm")]
+
+  maxent.tec <- read.csv(paste0(maxent.dir,"/species_data/maxent.data_tecs.csv"))
+
+  tecs <- unique(tec.data$TEC_Amy)
+
+  maxent.results <- read.csv(paste0(maxent.dir,"output/tecs/maxentResults.csv"))
+    maxent.results <- maxent.results[grepl("average",maxent.results$Species),]
+  parameters <- colnames(maxent.results)
+    parameters <- parameters[grepl(".contribution",parameters)]
+
+  cat("\n","\n","Generating pdf for EECs","\n")
+  pdf(paste0("Modelled EECs.pdf"),paper="a4r", width=0,height=0)
+    page <- 1
+
+  for(k in seq(tecs)){
+    
+    try({
+      sp.points <- maxent.tec[maxent.tec$tec==as.character(tecs[k]),c("easting","northing")]  
+      
+      if(nrow(sp.points)>0){
+        results <- maxent.results[maxent.results$Species==paste0(tecs[k]," (average)"),]
+          results <- round(results[,c("Test.AUC","AUC.Standard.Deviation",as.character(parameters))],2)
+          colnames(results) <- gsub(".contribution","",colnames(results))
+          results <- cbind(N=nrow(sp.points),AUC=paste0(results$Test.AUC," (",results$AUC.Standard.Deviation,")"), results)
+          results <- results[,colnames(results)!=c("Test.AUC") & colnames(results)!=c("AUC.Standard.Deviation")]
+          results <- t(results)
+        
+        r <- raster(paste0(zonation.dir,tecs[k],"_GH.tif"))
+        species <- names(r)
+          species <- gsub("_"," ",species)
+          species <- gsub(" GH","",species)
+        
+        par(xpd=NA,mar=c(2,7,2,2.5))
+        plot(r/1000, legend=F, axes=F,box=F, zlim=c(0,1))
+          image.plot(r/1000, legend.only=T, box=F, zlim=c(0,1),lab.breaks=c("0.0","0.5","1.0"),legend.shrink=0.3,legend.width=1,col=rev(terrain.colors(100)),cex.axis=0.75)
+          plot(lga,add=T, border="grey")
+          points(sp.points,pch=".",col="black")
+        
+          mtext(side=3,line=1,font=3,species)
+          mtext(side=1,line=1,"Endangered Ecological Community",adj=0,cex=0.75)
+          mtext(side=1,line=1,page,adj=1,cex=0.75)
+            
+          addtable2plot(150000,6322948,table=results,display.rownames=T,display.colnames=F,cex=0.7,yjust=0.5,xjust=0,bg=NA)
+          
+        cat("\n","  Plotting",species,"to pdf")
+        page <- page + 1
+      }
+    },silent=T)
+  }
+
+
+dev.off()
+
+```
+
+
+```{r plant pdfs for workshop}
+  k<-3
+
+  maxent.results <- read.csv(paste0(maxent.dir,"output/",taxa[k],"/maxentResults.csv"))
+    maxent.results <- maxent.results[grepl("average",maxent.results$Species),]
+  parameters <- colnames(maxent.results)
+    parameters <- parameters[grepl(".contribution",parameters)]
+
+  modelled.species$status <- paste0(modelled.species$NSW.status,modelled.species$Comm.status)
+  protection <- c("listed","protected")
+  
+for(p in seq(protection)){   
+
+  if(protection[p]=="protected") {
+    protected.species <- modelled.species[modelled.species$status=="P",]
+    } else protected.species <- modelled.species[modelled.species$status!="P",]
+  
+  family <- unique(protected.species$Family[protected.species$Taxa==taxa[k]])
+      family <- family[order(family)]
+    
+    cat("\n","\n","Generating pdf for", protection[p], taxa[k],"\n")
+      pdf(paste0(protection[p],"_",taxa[k],"_Modelled species.pdf"),paper="a4r",width=0,height=0)
+        page <- 1
+    
+    for(j in seq(family)){
+      sp.list <- protected.species$Scientific.Name[protected.species$Taxa==taxa[k] & protected.species$Family==family[j]]
+      cat("\n"," Family:",as.character(family[j])) 
+      
+        for(i in 1:length((sp.list))){
+          sp <- gsub(" ","_",sp.list[i])
+          try({
+            r <- raster(paste0(zonation.dir,sp,"_GH.tif"))
+            species <- names(r)
+              species <- gsub("_"," ",species)
+              species <- gsub(" GH","",species)
+            sp.points <- species.data[species.data$species==species,c("x","y")]
+            
+            results <- maxent.results[maxent.results$Species==paste0(sp," (average)"),]
+              if(nrow(results)>0){
+                results <- round(results[,c("Test.AUC","AUC.Standard.Deviation",as.character(parameters))],2)
+                colnames(results) <- gsub(".contribution","",colnames(results))
+                results <- cbind(N=nrow(sp.points),AUC=paste0(results$Test.AUC," (",results$AUC.Standard.Deviation,")"), results)
+                results <- results[,colnames(results)!=c("Test.AUC") & colnames(results)!=c("AUC.Standard.Deviation")]
+                results <- t(results)
+              }
+             
+            status <- paste0("NSW status - ",protected.species$NSW.status[protected.species$Scientific.Name==species],": Comm. Status - ",protected.species$Comm.status[protected.species$Scientific.Name==species])
+            par(xpd=NA,mar=c(2,7,2,2.5))
+            plot(r/1000, legend=F, axes=F,box=F, zlim=c(0,1),xlim=c(197142,581642),ylim=c(6282948,6521148))
+              image.plot(r/1000, legend.only=T, box=F, zlim=c(0,1),lab.breaks=c("0.0","0.5","1.0"),legend.shrink=0.3,legend.width=1,col=rev(terrain.colors(100)),cex.axis=0.75)
+              plot(lga,add=T, border="grey")
+           
+            points(sp.points,pch=".",col="black")
+            mtext(side=3,line=1,font=3,species)
+            mtext(side=3,line=1,paste0(toupper(taxa[k]),": ",family[j]),adj=0,cex=0.75)
+            mtext(side=1,line=1,page,adj=1,cex=0.75)
+            mtext(side=1,line=1,status,adj=0,cex=0.75)
+            
+         if(nrow(results)>0){ 
+           #addtable2plot(150000,6322948,table=results,display.rownames=T,display.colnames=F,cex=0.7,yjust=0.5,xjust=0,bg=NA)
+          }
+
+          cat("\n","  Plotting",species,"to pdf")
+          page <- page + 1
+          })
+        }
+      }
+    
+    dev.off()
+     }
+
+```

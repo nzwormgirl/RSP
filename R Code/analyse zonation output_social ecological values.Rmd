@@ -6,7 +6,7 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
 ```{r ImportData}
-currm(list=ls())
+rm(list=ls())
 library(raster)
 library(maptools)
 library(rgdal)
@@ -151,7 +151,7 @@ for(i in seq(overlays$thresholds)){
   overlays$soc.dev[i] <- nrow(priority.rankings[(priority.rankings$optimal_development > overlays$thresholds[i] & priority.rankings$optimal_social > overlays$thresholds[i]),]) / nrow(priority.rankings[(priority.rankings$optimal_development > overlays$thresholds[i] | priority.rankings$optimal_social > overlays$thresholds[i]),])
 }
 
-tiff("figures for ms/overlay_thresholds.tif",res=200,width=15,height=10,units="cm",pointsize=12, compression="lzw")
+tiff("figures for ms/overlay_thresholds.tif",res=300,width=15,height=10,units="cm",pointsize=12, compression="lzw")
   par(mfrow=c(1,1), mar=c(4,4,1,1.25))
   plot(con.soc~thresholds, data=overlays, type="l", xlab="Top fraction of the landscape", ylab="Proportion of overlap", bty="l", col=1, las=1, xaxs="i",yaxs="i",ylim=c(0,0.5), xaxt="n")
   axis(1,at=seq(0.5:1.0,by=0.1), label=c(c("0.5","0.4","0.3","0.2","0.1","0.0")))
@@ -201,7 +201,7 @@ colour.scenarios <- d(scenarios, hex=NA, line=1, line.width=1)
   
   
 # curve.plot <- function(i){ 
-#   tiff(filename=paste0(scenarios[i],"_replacement.cost.curves.tif"),width=7.5,height=7.5,units="cm",pointsize=10,res=200,compression="lzw")
+#   tiff(filename=paste0(scenarios[i],"_replacement.cost.curves.tif"),width=7.5,height=7.5,units="cm",pointsize=10,res=300,compression="lzw")
 #    par(mar=c(2.5,2.5,0.5,0.5), oma=c(0,0,0,0))
 #   plot(ave_prop_rem ~ Prop_landscape_lost, data=curves[[1]], type="l", xlab="", ylab="", lwd=1,col="grey", bty="l", las=1)
 #   lines(min_prop_rem ~ Prop_landscape_lost, data=curves[[1]], lty=2,lwd=1,col="grey")
@@ -231,7 +231,7 @@ axis(1,at=c(0,0.2,0.4,0.6,0.8,1), label=c("1.0","0.8","0.6","0.4","0.2","0.0"))
   mtext(plot.label, side=3, line=0.5,cex=1,adj=0)
 }
               
-tiff(filename="replacement.cost.curves.tif",width=15,height=20,units="cm",pointsize=12,res=200,compression="lzw")
+tiff(filename="replacement.cost.curves.tif",width=15,height=20,units="cm",pointsize=12,res=300,compression="lzw")
 
 par(mfrow=c(2,1), mar=c(4.1,4,1.5,1)) 
  plot.curves(plot.scenarios=c(1,2,11,4,8,9),y.variable="ave_prop_rem",labels=c("A. Biological values","B. Social values","C. Development preferences","D. Biological & social","E. Biological, social & development costs","F. Biological, social & development mask"),y.label="Mean proportion of distributions protected",x.label="",legend=TRUE, plot.label="a)", line.limit=0.396)
@@ -241,7 +241,7 @@ plot.curves(plot.scenarios=c(1,2,11,4,8,9),y.variable="min_prop_rem",y.label="Mi
 dev.off()
 
 
-tiff(filename="replacement.cost.curves_supplementary.tif",width=15,height=20,units="cm",pointsize=12,res=200,compression="lzw")
+tiff(filename="replacement.cost.curves_supplementary.tif",width=15,height=20,units="cm",pointsize=12,res=300,compression="lzw")
 
 par(mfrow=c(2,1), mar=c(4.1,4,1.5,1)) 
  plot.curves(plot.scenarios=c(1,5,6,7),y.variable="ave_prop_rem",labels=c("A. Biological values","G. Biological & inverse social costs","H. Biological & development costs","I. Biological & development mask"),y.label="Mean proportion of distributions protected",x.label="",legend=TRUE, plot.label="a)", line.limit=0.396)
@@ -257,6 +257,29 @@ plot.curves(plot.scenarios=c(1:11),y.variable="min_prop_rem",y.label="Minimum pr
 
 
 ```
+
+```{r plot for Chris Ives}
+
+tiff(filename="replacement.cost.curves_Ives.tif",width=20,height=20,units="cm",pointsize=12,res=300,compression="lzw")
+
+par(mfrow=c(1,1), mar=c(4.1,4,1.5,1)) 
+ plot.curves(plot.scenarios=c(1,7),y.variable="ave_prop_rem",labels=c("A. Biological values","F. Biological, social & development mask"),y.label="Proportion of distributions protected",x.label="Proportion of landscape protected",legend=FALSE, plot.label="", line.limit=0)
+
+input <- curves[[1]]
+  plot(input[,"ave_prop_rem"] ~ Prop_landscape_lost, data=input, type="n", xlab="Proportion of landscape protected", ylab="Minimum proportion of distributions protected", bty="l", las=1,xaxs = "i", yaxs="i",xaxt = "n",xlim=c(0,1))
+
+axis(1,at=c(0,0.2,0.4,0.6,0.8,1), label=c("1.0","0.8","0.6","0.4","0.2","0.0")) 
+
+    for(i in c(1,7)){
+    input <- curves[[i]]
+#       lines(input[,"ave_prop_rem"] ~ Prop_landscape_lost, data=input, lty=1, lwd=colour.scenarios$line.width[i], col=colour.scenarios$hex[i])
+      lines(input[,"min_prop_rem"] ~ Prop_landscape_lost, data=input, lty=1, lwd=colour.scenarios$line.width[i], col=colour.scenarios$hex[i])
+              }
+dev.off()
+
+
+```
+
 
 ```{r loss_by_species}
 # calculate how much each species is losing under each scenario

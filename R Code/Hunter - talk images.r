@@ -5,10 +5,16 @@ packages(RColorBrewer)
 hccrems.raster <- raster("C:/Users/awhitehead/Documents/GIS_Data/Hunter/Maxent_files/ghm_environmental_data/hccrems_mask.asc")
 species.data <- read.csv("~/GIS_data/Hunter/Maxent_files/species_data/maxent.data_ALA.NSW.csv")
 cma.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Hunter/Plans/HCCREMS_AreaOfInterest/HCCREMS_AoI_GDAtm.shp")
+lh.mask <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/LHRS_Study_Area.shp")
 
 png("GH species points.png",height=10,width=10,units="cm",res=300)
 plot(hccrems.raster,col="grey", axes=F, legend=F,box="n")
 points(species.data$easting,species.data$northing, pch=".")
+dev.off()
+
+png("Morepork species points.png",height=10,width=10,units="cm",res=300)
+plot(hccrems.raster,col="grey", axes=F, legend=F,box="n")
+points(species.data$easting[species.data$species=="Ninox novaeseelandiae"],species.data$northing[species.data$species=="Ninox novaeseelandiae"], pch=".")
 dev.off()
 
 
@@ -41,6 +47,12 @@ ninox.colour <- brewer.pal(9,"Blues")
 png("ninox.png",height=10,width=10,units="cm",res=300)
 plot(ninox, col=ninox.colour,axes=F, legend=F, box="n")
 plot(cma.mask,add=T)
+dev.off()
+
+png("ninox_lh.png",height=10,width=10,units="cm",res=300)
+plot(ninox, col=ninox.colour,axes=F, legend=F, box="n")
+plot(cma.mask,add=T)
+plot(lh.mask, add=T)
 dev.off()
 
 acacia_bynoeana <- raster("~/GIS_data/Hunter/zonation/greater hunter/Acacia_bynoeana.tif")

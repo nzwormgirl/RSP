@@ -10,7 +10,7 @@ ssi.dir <- "C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/greater hunte
 
 ssi.files <- dir(ssi.dir, pattern=".txt$", recursive=T)
 
-mask.raster <- raster("C:/Users/awhitehead/Documents/GIS_data/Hunter/Maxent_files/ghm_environmental_data/standardised_rasters/vegetation.asc")
+mask.raster <- raster("C:/Users/awhitehead/Documents/GIS_data/Hunter/Maxent_files/ghm_environmental_data/standardised_rasters/final_vegetation.asc")
  # set the background cells in the raster to 0
   mask.raster[!is.na(mask.raster)] <- 0
 
@@ -23,6 +23,7 @@ presence.absence.raster <- function (mask.raster,species.data,raster.label="") {
     writeRaster(speciesRaster,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/greater hunter/",raster.label,".tif"), format="GTiff",overwrite=T)
 #    writeRaster(speciesRaster,paste0("//654cw-20990/Users/awhitehead/Documents/RSP/data/zonation/greater hunter/",raster.label,".tif"), format="GTiff",overwrite=T)
   cat("Converted",raster.label,"to raster","\n")
+  gc()
 }
 
 for(i in 1:length(ssi.files)){
@@ -37,3 +38,41 @@ for(i in 1:length(ssi.files)){
 
 ```
 
+Create ssi rasters for species within Lower Hunter
+
+```{r lower hunter}
+rm(list=ls())
+library(raster)
+
+lh.ssi.dir <- "C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/lower hunter/ssi_files/" 
+
+lh.ssi.files <- dir(lh.ssi.dir, pattern=".txt$", recursive=T)
+
+hunter.mask <- raster("~/GIS_data/Hunter/zonation/lower hunter/output_lower.hunter_all.rank.asc")
+
+mask.raster <- raster("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/standardised_rasters/final_vegetation.asc")
+ # set the background cells in the raster to 0
+  mask.raster[!is.na(mask.raster)] <- 0
+  mask.raster <- mask(crop(mask.raster,hunter.mask),hunter.mask)
+
+presence.absence.raster <- function (mask.raster,species.data,raster.label="") {
+    #set the cells that contain points to 1
+  speciesRaster <- rasterize(species.data,mask.raster,field=1)
+    speciesRaster <- mask(merge(speciesRaster,mask.raster),mask.raster)
+    #label the raster
+    names(speciesRaster) <- raster.label
+    writeRaster(speciesRaster,paste0("~/GIS_data/Hunter/zonation/lower hunter/",raster.label,".tif"), format="GTiff",overwrite=T)
+  cat("Converted",raster.label,"to raster","\n")
+  gc()
+}
+
+for(i in 1:length(lh.ssi.files)){
+  species.data <- read.table(paste0(lh.ssi.dir,lh.ssi.files[i]),sep="\t")
+  species.data <- species.data[,1:2]
+  species <- strsplit(lh.ssi.files[i],".txt")
+  species <- gsub(" ","_",species)
+  presence.absence.raster(mask.raster,species.data, raster.label=species)
+  
+  }
+
+```

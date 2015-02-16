@@ -19,6 +19,9 @@ rm(list=ls())
 library(raster)
 library(rgdal)
 
+computer <- "//654cw-20990/Amy"
+output.dir <- "~/GIS_data/Hunter/Maxent_files/ghm.pm/environmental_data/vegetation/"
+
 #function to make a circular weights matrix of given radius and resolution
 #NB radius must be an even multiple of res!
 make_circ_filter<-function(radius, res){
@@ -60,10 +63,10 @@ presence.absence <- function(x) { x[x<threshold] <- 0
     
     cat("\n","Loaded",as.character(file.name))
     
-    sample.raster <- resample(sample.raster,mask, method="bilinear")
+#     sample.raster <- resample(sample.raster,mask, method="bilinear")
 
   # calculate the percentage cover within the circular filter
-    cat("\n","Calculating % cover of",as.character(file.name)," within",radius,"m radius")
+    cat("\n","Calculating % cover of",as.character(file.name),"within",radius,"m radius")
     r_filt <- focal(sample.raster, w=cf, fun=percent.cover)*mask
   
     par(mfrow=c(1,2))
@@ -72,8 +75,8 @@ presence.absence <- function(x) { x[x<threshold] <- 0
     
     file.name <- gsub(" ","_",file.name)
   
-    writeRaster(r_filt, paste0("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/vegetation/veg.",radius,file.name,".asc"), overwrite=TRUE)
-    cat("\n","Saved",paste0("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/vegetation/veg.",radius,file.name),"\n","\n")
+    writeRaster(r_filt, paste0(output.dir,"veg.",radius,file.name,".tif"), overwrite=TRUE)
+    cat("\n","Saved",paste0(output.dir,"veg.",radius,file.name),"\n","\n")
   
   return(r_filt)
   
@@ -83,19 +86,16 @@ presence.absence <- function(x) { x[x<threshold] <- 0
 
 Create percentage cover rasters for each of the Keith formations in the GHM at the Greater Hunter scale
 ```{r run_ghm_analysis}
-  setwd("~/GHM raster data")
 
-final.veg <- raster("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/vegetation/final_vegetation.tif")
+final.veg <- raster(paste0(output.dir,"final_vegetation.tif"))
 
 ghm.veg.reclass <- read.csv("~/GIS_data/Hunter/vegetation/ghm_veg_reclassify.csv")
 
   veg.types <- d(class=unique(ghm.veg.reclass$Mosiac),num=unique(ghm.veg.reclass$Mosiac_num))
   veg.types <- veg.types[!is.na(veg.types$num),]
 
-#   veg_types <- c("dry_sclero.asc","rainforests.asc","wet_sclero.asc","woodlands.asc","woody.asc")
-
 # create a sampling mask
-  GH.mask <- raster("~/GIS_data/Hunter/mask files/GH.mask.tif")
+  GH.mask <- raster("~/GIS_data/Hunter/mask files/GH_PM.mask.tif")
     GH.mask[!is.na(GH.mask)] <- 1
         
 # get the resolution of the mask raster
@@ -119,11 +119,18 @@ radius <- resolution*20
 # set the circular filter
   cf<-make_circ_filter(radius, resolution)
 
+pb <- txtProgressBar(min = 0, max = length(veg.types$num), style=3)
+
 for(i in seq(veg.types$num)) {
-  r <- final.veg  
-  r[r!=veg.types$num[i]] <- 0
-  generate.pc.ascii(veg.types$class[i],GH.mask,r)
+  try({
+    r <- final.veg  
+    r[r!=veg.types$num[i]] <- 0
+    generate.pc.ascii(veg.types$class[i],GH.mask,r)
+    setTxtProgressBar(pb, i)
+  })
  }
+
+close(pb)
 
 ```
 
@@ -166,24 +173,25 @@ for(i in seq(veg_types)) {
 ```
 
 ```{r create patch size raster}
-  GH.mask <- raster("~/GIS_data/Hunter/mask files/GH.mask.tif")
+  GH.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/GH_PM.mask.tif"))
     GH.mask[!is.na(GH.mask)] <- 1
 
-  GH.clipping.mask <- raster("~/GIS_data/Hunter/mask files/GH.clipping.mask.tif")
+  GH.clipping.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/GH_PM.clipping.mask.tif"))
     GH.clipping.mask[is.na(GH.clipping.mask)] <- 0
     GH.clipping.mask <- mask(GH.clipping.mask,GH.mask)
 
   resolution <- xres(GH.mask)
 
 ## Generate ascii files with percentage cover within 500 m radius
-  radius <- resolution*seq(10,50,by=10)
+  patch.size <- resolution*seq(10,50,by=10)
 
 
-for(i in seq(radius)){
+for(i in seq(patch.size)){
   # set the circular filter
-    cf<-make_circ_filter(radius[i], resolution)
+  radius <- patch.size[i]   
+  cf<-make_circ_filter(radius, resolution)
       
-    assign(paste0("patch.size.",radius[i]), generate.pc.ascii("GH_patch.size",GH.mask,GH.clipping.mask))
+    assign(paste0("patch.size.",radius), generate.pc.ascii("GH_patch.size",GH.mask,GH.clipping.mask))
   }
 
 ```

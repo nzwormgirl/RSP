@@ -13,56 +13,293 @@ Create maps for social values Decision Point Article
   packages(dplyr)
   packages(png)
   packages(rasterVis)
+  packages(scales)
+  packages(ggmap)
+  packages(colorRamps)
   
   output.directory <- "~/GIS_data/Hunter/zonation/social ecological values/output_files/"
 
-  region <- readShapePoly("~/GIS_data/Hunter/zonation/social ecological values/region_outlineCopy.shp")
+  GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+  region <- readShapePoly("~/GIS_data/Hunter/zonation/social ecological values/region_outlineCopy.shp",proj4string = GDA94.56)
+  region.gda94 <- spTransform(region,GDA94)
     region.data <- fortify(region)
+    region.gda94.data <- fortify(region.gda94)
   
   BioH <- raster(paste0(output.directory,"conservation_high.asc"))
     BioH[!is.na(BioH)] <- 1
     BioH[is.na(BioH)] <- 0
+    BioH <- mask(BioH,region)
   
   SocH <- raster(paste0(output.directory,"social_high.asc"))
     SocH[!is.na(SocH)] <- 3
     SocH[is.na(SocH)] <- 0
+    SocH <- mask(SocH,region)
   
   DevH <- raster(paste0(output.directory,"development_high.asc"))
     DevH[!is.na(DevH)] <- 5
     DevH[is.na(DevH)] <- 0
+    DevH <- mask(DevH,region)
 
   BioSoc <- raster(paste0(output.directory,"output_conservation7_social.rank.asc"))
-    BioSoc[BioSoc >= 0.7] <- 10
+    BioSoc[BioSoc >= 0.7] <- 1
     BioSoc[BioSoc!=1] <- 0
+    BioSoc <- mask(BioSoc,region)
 
-colours <- d(colour=c("#87CC66","#7AB6F5","#2AFFD5","#CD6666","#CDAA66","#AA66CD","#895A44","#008080"),scenario=c("1. Biological","3. Social","4. Biological & Social","5. Development","6. Biological & Development","8. Social & Development", "9. Biological, Social & Development","10. Integrating Biological\n& Social Values"),value=c(1,3,4,5,6,8,9,10)) 
+colours <- d(colour=c("#87CC66","#7AB6F5","#2AFFD5","#C83737","#FF9955","#B380FF","#C87137","#008080"),scenario=c("1. Biological","3. Social","4. Biological & Social","5. Development","6. Biological & Development","8. Social & Development", "9. Biological, Social & Development","10. Integrating Biological\n& Social Values"),value=c(1,3,4,5,6,8,9,10)) 
 
 
 ```
+
+```{r raster plotting theme}
+
+theme_raster <- function (base_size = 12, base_family = "") 
+{
+    theme_bw(base_size = base_size, base_family = base_family) %+replace% 
+        theme(axis.text = element_text(size = rel(0.8)), 
+              axis.ticks = element_blank(),
+              panel.background = element_rect(fill = "transparent",colour = NA),
+              panel.grid = element_blank(),
+              panel.border=element_blank(),
+              plot.background = element_rect(fill = "transparent",colour = NA),
+              axis.title = element_blank(),
+              axis.text  = element_blank(),
+              legend.position="none")
+}
+
+```
+
+```{r plot species rasters}
+quoll <- raster("~/GIS_data/Hunter/zonation/social ecological values/Dasyurus_maculatus.asc")
+
+quoll.plot <- {
+  gplot(quoll) + geom_raster(aes(fill=value)) +
+    coord_equal()  + 
+    scale_fill_gradientn(colours=c(blue2red(100)),na.value="transparent",guide="legend") + 
+    scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+    geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA,  size = .5) +
+    theme_raster()
+  }
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/quoll.png",quoll.plot, width=7.5,height=6,dpi=300,bg="transparent")
+
+
+```
+
+```{r zonation outputs}
+zonation.bio <- raster(paste0(output.directory,"output_optimal_conservation7.rank.asc"))
+
+zonation.bio.plot <- {
+  gplot(zonation.bio) + geom_raster(aes(fill=value)) +
+    coord_equal()  + 
+    scale_fill_gradientn(colours=c(blue2red(100)),na.value="transparent",guide="legend") + 
+    scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+    geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA,  size = .5) +
+    theme_raster()
+  }
+
+# ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/quoll.png",quoll.plot, width=7.5,height=6,dpi=300,bg="transparent")
+
+```
+
+```{r plot reclassified zonation rank}
+IsBecomes.zonation <- matrix(c(0,0.2,1,0.2,0.50,2, 0.50,0.70,3,0.70,0.85,4,0.85,0.90,5,0.90,0.95,6,0.95,1.00,7), ncol=3, byrow=TRUE)
+
+
+leg.labels <- c("top 5%","top 10%","top 15%","top 30%","top 50%","rest")
+breaks <- c(0,0.2,0.5,0.75,0.9,0.95,0.98,1)
+colours <- c("black","dark blue","blue","yellow","magenta","dark red", "red")
+
+
+reclassified_priority <- reclassify(zonation.bio,IsBecomes.zonation)
+
+png("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/bio.reclassified.png", width=15,height=12,bg="transparent",units="cm",res=300)
+par(mar=c(0,0,0,0),oma=c(0,0,0,0))
+plot(reclassified_priority,col=colours,axes=F,box=F,legend=F)
+  plot(region,add=T)
+dev.off()
+
+
+
+```
+
+```{r plot individual scenarios}
+
+region.plot <- {
+  gplot(BioH) + geom_raster(aes(fill=value)) +
+    coord_equal()  + 
+    scale_fill_gradientn(colours=c(NA,NA),breaks = c(0,1),na.value="transparent",guide="legend") + 
+    scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+    geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA,  size = .5) +
+    theme_raster()
+  }
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/region.png",region.plot, width=7.5,height=6,dpi=300,bg="transparent")
+
+
+BioH.t30 <- {
+  gplot(BioH) + geom_raster(aes(fill=value)) +
+    coord_equal()  + 
+    scale_fill_gradientn(colours=c(NA,as.character(colours$colour[1])),breaks = c(0,1),na.value="transparent",guide="legend") + 
+    scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+    geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA, size = .5) +
+    theme_raster() 
+  }
+
+SocH.t30 <- {
+  gplot(SocH) + geom_raster(aes(fill=value)) +
+    coord_equal()  + 
+    scale_fill_gradientn(colours=c(NA,as.character(colours$colour[2])),breaks = c(0,1),na.value="transparent",guide="legend") + 
+    scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+    geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA, size = .5) +
+    theme_raster()
+  }
+
+DevH.t30 <- {
+  gplot(DevH) + geom_raster(aes(fill=value)) +
+    coord_equal()  + 
+    scale_fill_gradientn(colours=c(NA,as.character(colours$colour[4])),breaks = c(0,1),na.value="transparent",guide="legend") + 
+    scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+    geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA,  size = .5) +
+    theme_raster()
+  }
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/BioH.png",BioH.t30, width=7.5,height=6,dpi=300,bg="transparent")
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/SocH.png",SocH.t30, width=7.5,height=6,dpi=300,bg="transparent")
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/DevH.png",DevH.t30, width=7.5,height=6,dpi=300,bg="transparent")
+
+```
+
+
 
 
 
 ```{r combine layers}
 
   High <- stack(BioH,SocH,DevH)
-    High[is.na(High)] <- 0
     
   combined <- calc(High,sum)
     combined[combined==0] <- NA
 
+combined.plot <- {
+  gplot(combined) + geom_raster(aes(fill=value)) +
+    coord_equal()  + 
+    scale_fill_gradientn(colours=c(NA,as.character(colours$colour[-10])),breaks = c(0,1),na.value="transparent",guide="legend") + 
+    scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+    geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA,  size = .5) +
+    theme_raster()
+  }
 
   writeRaster(combined,paste0(output.directory,"combined_overlays.DP.tif"),format="GTiff",overwrite=T)
 
 
+combined.bio <- combined
+  combined.bio[combined.bio!=1] <- 0
 
-tiff("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/overlays.tif",res=300,compression="lzw",width=15,height=10,units="cm")
-  par(mar=c(0,0,0,0))  
-plot(combined,legend=F,box=F,axes=F,xlim=c(323000,420000),ylim=c(634000,6400000),col=colours$colour)
-    plot(region,add=T)
-    par(xpd = TRUE)
-    legend(x = 387500, y = 6355000,  legend=colours$scenario[1:3], fill = colour[1:3],cex=0.7,bty="n") 
-dev.off()
-  
+combined.bio.plot <- {
+  gplot(combined.bio) + geom_raster(aes(fill=value)) +
+    coord_equal()  + 
+    scale_fill_gradientn(colours=c(NA,as.character(colours$colour[1])),breaks = c(0,1),na.value="transparent",guide="legend") + 
+    scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+    geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA,  size = .5) +
+    theme_raster()
+  }
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/combined.bio.png",combined.bio.plot, width=7.5,height=6,dpi=300,bg="transparent")
+
+combined.soc <- combined
+  combined.soc[combined.soc!=3] <- 0
+
+combined.soc.plot <- {
+  gplot(combined.soc) + geom_raster(aes(fill=value)) +
+    coord_equal()  + 
+    scale_fill_gradientn(colours=c(NA,as.character(colours$colour[2])),breaks = c(0,1),na.value="transparent",guide="legend") + 
+    scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+    geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA,  size = .5) +
+    theme_raster()
+  }
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/combined.soc.png",combined.soc.plot, width=7.5,height=6,dpi=300,bg="transparent")
+
+combined.dev <- combined
+  combined.dev[combined.dev!=5] <- 0
+
+combined.dev.plot <- {
+  gplot(combined.dev) + geom_raster(aes(fill=value)) +
+    coord_equal()  + 
+    scale_fill_gradientn(colours=c(NA,as.character(colours$colour[4])),breaks = c(0,1),na.value="transparent",guide="legend") + 
+    scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+    geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA,  size = .5) +
+    theme_raster()
+  }
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/combined.dev.png",combined.dev.plot, width=7.5,height=6,dpi=300,bg="transparent")
+
+combined.biosoc <- combined
+  combined.biosoc[combined.biosoc!=4] <- 0
+
+combined.biosoc.plot <- {
+  gplot(combined.biosoc) + geom_raster(aes(fill=value)) +
+    coord_equal()  + 
+    scale_fill_gradientn(colours=c(NA,as.character(colours$colour[3])),breaks = c(0,1),na.value="transparent",guide="legend") + 
+    scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+    geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA,  size = .5) +
+    theme_raster()
+  }
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/combined.biosoc.png",combined.biosoc.plot, width=7.5,height=6,dpi=300,bg="transparent")
+
+combined.biodev <- combined
+  combined.biodev[combined.biodev!=6] <- 0
+
+combined.biodev.plot <- {
+  gplot(combined.biodev) + geom_raster(aes(fill=value)) +
+    coord_equal()  + 
+    scale_fill_gradientn(colours=c(NA,as.character(colours$colour[5])),breaks = c(0,1),na.value="transparent",guide="legend") + 
+    scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+    geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA,  size = .5) +
+    theme_raster()
+  }
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/combined.biodev.png",combined.biodev.plot, width=7.5,height=6,dpi=300,bg="transparent")
+
+combined.socdev <- combined
+  combined.socdev[combined.socdev!=8] <- 0
+
+combined.socdev.plot <- {
+  gplot(combined.socdev) + geom_raster(aes(fill=value)) +
+    coord_equal()  + 
+    scale_fill_gradientn(colours=c(NA,as.character(colours$colour[6])),breaks = c(0,1),na.value="transparent",guide="legend") + 
+    scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+    geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA,  size = .5) +
+    theme_raster()
+  }
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/combined.socdev.png",combined.socdev.plot, width=7.5,height=6,dpi=300,bg="transparent")
+
+combined.biosocdev <- combined
+  combined.biosocdev[combined.biosocdev!=9] <- 0
+
+combined.biosocdev.plot <- {
+  gplot(combined.biosocdev) + geom_raster(aes(fill=value)) +
+    coord_equal()  + 
+    scale_fill_gradientn(colours=c(NA,as.character(colours$colour[7])),breaks = c(0,1),na.value="transparent",guide="legend") + 
+    scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+    geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA,  size = .5) +
+    theme_raster()
+  }
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/combined.biosocdev.png",combined.biosocdev.plot, width=7.5,height=6,dpi=300,bg="transparent")
+
+# tiff("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/overlays.tif",res=300,compression="lzw",width=15,height=10,units="cm")
+#   par(mar=c(0,0,0,0))  
+# plot(combined,legend=F,box=F,axes=F,xlim=c(323000,420000),ylim=c(634000,6400000),col=colours$colour)
+#     plot(region,add=T)
+#     par(xpd = TRUE)
+#     legend(x = 387500, y = 6355000,  legend=colours$scenario[1:3], fill = colour[1:3],cex=0.7,bty="n") 
+# dev.off()
+#   
 
 ```
 
@@ -70,7 +307,6 @@ dev.off()
 ```{r biological & social}
 
   bs.high <- stack(BioH,SocH)
-    bs.high[is.na(bs.high)] <- 0
     
   bs.combined <- calc(bs.high,sum)
     bs.combined[bs.combined==0] <- NA
@@ -101,34 +337,86 @@ hunter.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Hunter/All 
 BS.overlay <- {
   gplot(bs.combined) + geom_raster(aes(fill=value)) +
     coord_equal()  + 
-    scale_fill_gradientn(colours=as.character(colours$colour[c(1,2,3)]),breaks = c(1,3,4),na.value="white",guide="legend", labels=colours$scenario[1:3]) + 
+    scale_fill_gradientn(colours=as.character(colours$colour[c(1,2,3)]),breaks = c(1,3,4),na.value="transparent",guide="legend", labels=colours$scenario[1:3]) + 
     scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
     geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA, alpha = .01, size = .5) +
-    theme_bw() +
-    theme(axis.ticks.x = element_blank()) + 
-    theme(panel.background = element_blank(),panel.grid = element_blank(),panel.border=element_blank()) +  
-    theme(axis.title = element_blank(),axis.ticks = element_blank(),axis.text  = element_blank()) + 
-#     theme(legend.title=element_blank(), legend.position=c("right"), legend.text = element_text(size=12),legend.key=element_rect(colour = 'white',size=1))
-    theme(legend.position="none")
+    theme_raster()
   }
 
 ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/BS.overlay.svg",BS.overlay)
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/BS.overlay.png",BS.overlay, width=7.5,height=6,dpi=300,bg="transparent")
 
 BS.integration <- {
   gplot(BioSoc) + geom_raster(aes(fill=value)) +
   coord_equal()  +   
-  scale_fill_gradientn(colours=c(NA,as.character(colours$colour[8])),breaks = c(0,1),na.value="white",guide="legend", labels=c("",as.character(colours$scenario[8]))) + 
+  scale_fill_gradientn(colours=c(NA,as.character(colours$colour[8])),breaks = c(0,1),na.value="transparent",guide="legend", labels=c("",as.character(colours$scenario[8]))) + 
   scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
   geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA, alpha = .01, size = 0.5) +
-  theme_bw() +
-  theme(axis.ticks.x = element_blank()) + 
-  theme(panel.background = element_blank(),panel.grid = element_blank(),panel.border=element_blank()) +  
-  theme(axis.title = element_blank(),axis.ticks = element_blank(),axis.text  = element_blank()) + 
-#   theme(legend.title=element_blank(), legend.position=c("right"), legend.text = element_text(size=12),legend.key=element_rect(colour = 'white',size=1))
-  theme(legend.position="none")
+  theme_raster()
 }
 
 ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/BS.integration.svg",BS.integration)
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/BS.integration.png",BS.integration, width=7.5,height=6,dpi=300,bg = "transparent")
+
+```
+
+```{r biological & social}
+
+  bd.high <- stack(BioH,DevH)
+    
+  bd.combined <- calc(bd.high,sum)
+    bd.combined[bd.combined==0] <- NA
+    bd.combined[bd.combined==4] <- 2
+    bd.combined[bd.combined==5] <- 3
+
+png("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/BD.overlay.png", width=7.5,height=6,bg="transparent",units="cm",res=300)
+par(mar=c(0,0,0,0),oma=c(0,0,0,0))
+plot(bd.combined,col=as.character(colours$colour[c(1,4,5)]),axes=F,box=F,legend=F)
+  plot(region,add=T)
+dev.off()
+
+
+BD.overlay <- {
+  gplot(bd.combined) + geom_raster(aes(fill=value)) +
+    coord_equal()  + 
+    scale_fill_gradientn(colours=as.character(colours$colour[c(1,4,5)]),breaks = c(1,5,6),na.value="transparent",guide="legend", labels=colours$scenario[1:3]) + 
+    scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+    geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA, size = .5) +
+    theme_raster()
+  }
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/BD.overlay.svg",BD.overlay)
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/BD.overlay.png",BD.overlay, width=7.5,height=6,dpi=300,bg="transparent")
+
+BS.integration <- {
+  gplot(BioSoc) + geom_raster(aes(fill=value)) +
+  coord_equal()  +   
+  scale_fill_gradientn(colours=c(NA,as.character(colours$colour[8])),breaks = c(0,1),na.value="transparent",guide="legend", labels=c("",as.character(colours$scenario[8]))) + 
+  scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+  geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA, alpha = .01, size = 0.5) +
+  theme_raster()
+}
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/BS.integration.svg",BS.integration)
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/BS.integration.png",BS.integration, width=7.5,height=6,dpi=300,bg = "transparent")
+
+```
+
+```{r cost integration}
+cost.integration <- raster(paste0(output.directory,"output_conservation7_social.development.costs.rank.asc"))
+cost.integration[cost.integration<0.7] <- 0
+cost.integration[cost.integration!=0] <- 1
+
+bio.soc.dev<- {
+  gplot(cost.integration) + geom_raster(aes(fill=value)) +
+  coord_equal()  +   
+  scale_fill_gradientn(colours=c(NA,as.character(colours$colour[8])),breaks = c(0,1),na.value="transparent",guide="legend", labels=c("",as.character(colours$scenario[8]))) + 
+  scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) +
+  geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA, alpha = .01, size = 0.5) +
+  theme_raster()
+}
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/BSD-cost.integration.png",bio.soc.dev, width=7.5,height=6,dpi=300,bg = "transparent")
 
 ```
 
@@ -190,14 +478,12 @@ top.30 <- rbind(optimal_conservation7.curves[optimal_conservation7.curves$Prop_l
     plot.30$plot.order[plot.30$species==species.order[i]] <- i    
   }
 
-
-
   species.plot <- {
     ggplot(plot.30, aes(reorder(species,plot.order), distribution, fill = scenario)) + geom_bar(stat="identity", position = "dodge") +
     ylab("Proportion of distribution protected") +
     coord_flip() +
     theme_bw() +
-    scale_fill_manual(values=as.character(colours$colour[c(8,3,1)]),breaks=c("Biological values only","Social values only","Integrated solution")) + 
+    scale_fill_manual(values=as.character(colours$colour[c(8,2,1)]),breaks=c("Biological values only","Social values only","Integrated solution")) + 
     theme(axis.ticks.x = element_blank()) + 
     theme(panel.background = element_blank(),panel.grid.minor = element_blank(),panel.grid.major.y = element_blank(),panel.border=element_blank()) +  
     theme(axis.title.y = element_blank(),axis.ticks.y = element_blank(),axis.text.y  = element_text(hjust=1, size=14)) + 
@@ -205,16 +491,51 @@ top.30 <- rbind(optimal_conservation7.curves[optimal_conservation7.curves$Prop_l
     theme(legend.title=element_blank(), legend.position=c(0.85,0.925), legend.text = element_text(size=12),legend.key=element_rect(colour = 'white',size=1))
     }
 
-ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/species_distributions.tiff",species.plot)
+species.plot.none <- species.plot + scale_fill_manual(values=alpha(c("white","white","white"),0),breaks=c("","",""))
+species.plot.bio <- species.plot + scale_fill_manual(values=c(NA,NA,as.character(colours$colour[1])),breaks=c("Biological values only","Social values only","Integrated solution"))
+species.plot.bio.soc <- species.plot + scale_fill_manual(values=c(NA,as.character(colours$colour[c(2,1)])),breaks=c("Biological values only","Social values only","Integrated solution"))
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/species_distributions.tiff",species.plot, width=7.5,height=6,dpi=300)
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/species_distributions.bio.tiff",species.plot.bio, width=7.5,height=6,dpi=300)
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/species_distributions.bio.soc.tiff",species.plot.bio.soc, width=7.5,height=6,dpi=300)
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/species_distributions.none.tiff",species.plot.none, width=7.5,height=6,dpi=300)
 
 ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/species_distributions.svg",species.plot)
 
-# tiff("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/species_distributions.tif",compression="lzw",res=300,height=20,width=20,pointsize=12)
-#   species.plot
-# dev.off()
+tiff("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/species_distributions.tif",compression="lzw",res=300,height=20,width=20,pointsize=12)
+  species.plot
+dev.off()
 
 
 ```
+
+```{r plot social values}
+biodiversity <- raster("~/GIS_data/Hunter/social values/gda_tm/bio_all.asc")
+  biodiversity <- mask(biodiversity,region)
+
+biodiversity.plot <- gplot(biodiversity) + geom_raster(aes(fill=value)) +   coord_equal()  + scale_fill_gradientn(colours=c(NA,as.character(colours$colour[2])),breaks = c(0,1),na.value="transparent",guide="legend", labels=c("",as.character(colours$scenario[8]))) + scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) + geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA, alpha = .01, size = 0.5) + theme_raster()
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/biodiversity.png",biodiversity.plot,bg="transparent", width=7.5,height=6,dpi=300)
+
+residential <- raster("~/GIS_data/Hunter/social values/gda_tm/pos_res_dev.asc")
+  residential <- mask(residential,region)
+
+residential.plot <- gplot(residential) + geom_raster(aes(fill=value)) +   coord_equal()  + scale_fill_gradientn(colours=c(NA,as.character(colours$colour[4])),breaks = c(0,1),na.value="transparent",guide="legend", labels=c("",as.character(colours$scenario[8]))) + scale_x_continuous(expand=c(0,0)) + scale_y_continuous(expand=c(0,0)) + geom_polygon(aes(x = long, y = lat, group = group), data=region.data, colour = 'black', fill = NA, alpha = .01, size = 0.5) + theme_raster()
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/residential.png",residential.plot,bg="transparent", width=7.5,height=6,dpi=300)
+
+
+```
+
+```{r make a satellite map}
+# set the google map background for the species plots and create background map
+  map <- get_map(location = c(151.60,-32.790), zoom = 9, maptype="satellite")
+
+base.map <- ggmap(map) + geom_polygon(aes(x = long, y = lat, group = group), data=region.gda94.data, colour = 'grey', fill = 'transparent', size = .3) + theme_raster()
+
+ggsave("~/GIS_data/Hunter/zonation/social ecological values/output_files/figures for ms/Decision Point/satellite_map.png",base.map)
+```
+
 
 ```{r import png images}
 

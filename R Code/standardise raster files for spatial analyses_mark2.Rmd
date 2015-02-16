@@ -10,7 +10,7 @@ When you click the **Knit HTML** button a web page will be generated that includ
 rm(list=ls())
 start.time <- proc.time()
 
-working.directory <- "~/GIS_data/Hunter/Maxent_files/ghm.pm_environmental_data"
+working.directory <- "~/GIS_data/Hunter/Maxent_files/ghm.pm/environmental_data"
 
  setwd(working.directory)
 
@@ -35,19 +35,22 @@ setwd(working.directory)
     veg.rasters[["final_vegetation"]] <- mask(r,region.mask)
 
   # topography
-  topo.rasters <- stack(dir("topography", pattern="*.tif$", recursive=T, full.names=T)) 
+  topo.rasters <- stack(dir("topography", pattern="*.tif$", recursive=F, full.names=T)) 
 
   # soils
-  soil.rasters <- stack(dir("soils", pattern="*.tif$", recursive=T, full.names=T)) 
+  soil.rasters <- stack(dir("soils", pattern="*.tif$", recursive=T, full.names=T))
+    soil.rasters <- dropLayer(soil.rasters,which(grepl("X_clay|X_nutrients",names(soil.rasters))==TRUE))
 
   # climate
   climate.rasters <- stack(dir("climate", pattern="*.tif$", recursive=T, full.names=T))
 
   # water
-  water.rasters <- stack(dir("water", pattern="*.tif$", recursive=T, full.names=T))
-
-  # sampling bias layers
+#   water.rasters <- stack(dir("water", pattern="*.tif$", recursive=T, full.names=T))
+#     water.rasters <- dropLayer(water.rasters,which(grepl("X_distanywater|X_distnonpermw|X_erosional",names(water.rasters))==TRUE))
+  
+# sampling bias layers
   sampling.rasters <- stack(dir("sampling bias", pattern="*.tif$", recursive=T, full.names=T)) 
+    sampling.rasters <- dropLayer(sampling.rasters,which(grepl("sb_arthropods",names(sampling.rasters))==TRUE))
     sampling.rasters <- resample(sampling.rasters,region.mask)
 
 gc()
@@ -57,7 +60,7 @@ gc()
 
 ```{r standardise_rasters}
 # stack all environmental rasters together
-  envi.rasters <- stack(region.mask,veg.rasters, topo.rasters, soil.rasters, climate.rasters, water.rasters,sampling.rasters)
+  envi.rasters <- stack(region.mask,veg.rasters, topo.rasters, soil.rasters, climate.rasters, sampling.rasters)
     envi.rasters.names <- names(envi.rasters)
       envi.rasters.names <- gsub("X_","",envi.rasters.names)
       envi.rasters.names[grepl("wiioz2_w1k3e",envi.rasters.names)] <- "wii"
@@ -111,7 +114,7 @@ for(i in 1:(length(standardised.rasters)-1)){
   for(j in (i+1):length(standardised.files)){
     n <- n+1
     output[i,j] <- cor(raster.i,getValues(standardised.rasters[[j]]), use="complete.obs")
-    setWinProgressBar(pb, n, label=sprintf("%g%% done", round(n/n.cell,2)))
+    setWinProgressBar(pb, n, label=sprintf("%g%% done", round(n/n.cell,2)*100))
   }
 }
 close(pb)

@@ -27,11 +27,14 @@ packages(maptools)
 packages(sp)
 packages(rgeos)
 packages(raster)
+packages(rgdal)
 
 opts_chunk$set(dev="png", dev.args=list(type="cairo"), dpi=96, warning=FALSE,error=FALSE,echo=FALSE,message=FALSE,tidy=TRUE, results='hide')
 
+computer <- "//654cw-20990/Amy"
 setwd("~/GIS_data/Hunter/Plans/PA data for Amy - LH/")
 output.directory <- "~/GIS_data/Hunter/Plans/PA data for Amy - LH/rasters/"
+
 
 GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
 GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
@@ -53,13 +56,19 @@ create.raster <- function (s, mask.raster, raster.label, value=1, transform=FALS
     return(r)
   }
 
-LH.mask <- raster("~/GIS_data/Hunter/mask files/LH.mask.tif")
+LH.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/LH.mask.tif"))
   LH.mask[!is.na(LH.mask)] <- 0
 
- LH.clipping.mask <- raster("~/GIS_data/Hunter/mask files/LH.clipping.mask.tif")
- # set the background cells in the raster to 0
-  LH.clipping.mask[!is.na(LH.clipping.mask)] <- 0
+ # LHSA clipping mask
+  LH.clipping.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/LH.clipping.mask.tif"))
+    LH.clipping.mask[!is.na(LH.clipping.mask)] <- 0
 
+# LHSA urban clipping mask
+  LH.urban.clipping.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/LH.urban.clipping.mask.tif"))
+    LH.urban.clipping.mask[!is.na(LH.urban.clipping.mask)] <- 0
+
+# LH administrative boundary
+  LH.shp <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/5_LGAs_StudyArea.shp", proj4=GDA94.56)
 ```
 
 **Conservation Layers**  
@@ -104,9 +113,7 @@ setwd("~/GIS_data/Hunter/Plans/PA data for Amy - LH/")
 
   capad_3.raster <- create.raster(capad[grepl(c("National Park|Nature Reserve|Aboriginal Area|State Conservation Area|Regional Park"),capad$TYPE),], LH.mask, "capad3",transform=TRUE,value=3)
 
-  capad_2.raster <- create.raster(capad[grepl(c("Flora Reserve"),capad$TYPE),], LH.mask, "capad2",transform=TRUE,value=2)
-
-  capad_1.raster <- create.raster(capad[grepl(c("Protected area"),capad$TYPE),], LH.mask, "capad1",transform=TRUE,value=1)
+  capad_2.raster <- create.raster(capad[grepl(c("Flora Reserve|Protected area"),capad$TYPE),], LH.mask, "capad2",transform=TRUE,value=2)
 
 # Ramsar wetlands
   ramsar.shp <- readShapePoly("Data layers for v1/ramsar_wetlands_for_download/ramsar_wetlands_LH.shp", proj4string=GDA94)
@@ -123,13 +130,19 @@ setwd("~/GIS_data/Hunter/Plans/PA data for Amy - LH/")
 
   sepp26.raster <- create.raster(sepp26.shp,LH.mask,"SEPP26", transform=TRUE,value=2)
 
+# SEPP 71 - DON'T INCLUDE
+  sepp71.shp <- readShapePoly("Additional data layers for v2/sepp71 coastal protection/SEPP71.shp", proj4string=GDA94)
+
+  sepp71.raster <- create.raster(sepp71.shp,LH.mask,"SEPP71", transform=TRUE,value=2)
+
 ```
 
 **Heritage Layers**  
 Based on three shapefiles:  
 * commonwealth_heritage_public_LH.shp (after removing the Williamtown RAAF Base Group)  
 * LH_Commonwealth_Lands.shp  
-* WilliamtownRAAF_HeritageSites.shp  
+* WilliamtownRAAF_HeritageSites.shp
+* ipa_declared.shp
 
 ```{r import heritage layers, warning=FALSE,error=FALSE,echo=FALSE,message=FALSE,tidy=TRUE, results='hide'}
 setwd("~/GIS_data/Hunter/Plans/PA data for Amy - LH/")
@@ -144,12 +157,16 @@ setwd("~/GIS_data/Hunter/Plans/PA data for Amy - LH/")
 # LH Commonwealth Lands (These seem like a strange thing to include - not really a protected area)
   commonwealth.lands <- readShapePoly("Additional data layers for v2/Commonwealth Lands/data/LH_Commonwealth_Lands.shp", proj4string=GDA94)
 
-  commonwealth.lands.raster <- create.raster(commonwealth.lands, LH.mask, "CommonwealthLands",transform=TRUE,value=2)
+  commonwealth.lands.raster <- create.raster(commonwealth.lands, LH.mask, "CommonwealthLands",transform=TRUE,value=1)
 
 # Williamtown Heritage Sites
   WHS <- readShapePoly("Additional data layers for v2/Heritage sites around WilliamtownRAAF/WilliamtownRAAF_HeritageSites.shp", proj4string=GDA94)
 
   WHS.raster <- create.raster(WHS,LH.mask, "WilliamtownRAAF_HeritageSites", transform=T, value=3)
+
+# Indigenous protected Areas
+  ipa <- readShapePoly("Additional data layers for v2/Indigenous protected areas/ipa_declared.shp", proj4string=GDA94)
+  ipa.raster <- create.raster(ipa,LH.mask, "ipa_declared", transform=T, value=2)
 
 ```
 
@@ -158,23 +175,23 @@ The spatial data have been classified into three levels of security as defined b
 **High**  
 * National Park  
 * Nature Reserve  
-* Ramsar  
+* State Conservation Area  
+* Regional Park
+* Conservation Agreements
+* WilliamtownRAAF_HeritageSites
+* Aboriginal Area (based on CAPAD)
 
 **Medium**  
-* State Conservation Area  
-* Regional Park  
+* SEPP 14  
+* SEPP 26 
 * Flora Reserve (Flora Management areas within State Forests)  
 * Protected Area (Forest Management areas within State Forests)  
-* Conservation Agreements  
-* WilliamtownRAAF_HeritageSites  
-* Commonwealth Lands (Largely defence housing and postoffices)  
+* Ramsar
 * Commonwealth Heritage (excluding the Williamtown RAAF Base Group)  
-* Aboriginal Area (based on CAPAD)  
 
 **Low**  
-* SEPP 14  
-* SEPP 26  
-* Registered property agreements  
+* Commonwealth Lands (Largely defence housing and postoffices)  
+* Registered property agreements ?? 
 * Wildlife Refuges  
 
 These were then merged to create one layer representing the security of protected areas.  Where areas with differing classifications overlapped, the highest security level was assigned.
@@ -182,15 +199,15 @@ These were then merged to create one layer representing the security of protecte
 ```{r merge rasters, warning=FALSE,error=FALSE,echo=FALSE,message=FALSE,tidy=TRUE, results='hide'}
 setwd("~/GIS_data/Hunter/Plans/PA data for Amy - LH/")
 
-protected.areas <- calc(stack(com_heritage_raster,NPWS.raster,Cons.Agree.raster,Reg.prop.raster,wildlife_refuges.raster,capad_1.raster,capad_2.raster,capad_3.raster,ramsar.raster,sepp14.raster,sepp26.raster,commonwealth.lands.raster,WHS.raster),max)
+protected.areas <- calc(stack(com_heritage_raster,NPWS.raster,Cons.Agree.raster,Reg.prop.raster,wildlife_refuges.raster,capad_2.raster,capad_3.raster,ramsar.raster,sepp14.raster,sepp26.raster,commonwealth.lands.raster,WHS.raster,ipa.raster),max)
 
   protected.areas <- protected.areas + 3  
-    writeRaster(protected.areas, filename=paste0(output.directory,"ProtectedAreas_v3"), format="GTiff", overwrite=T)
+    writeRaster(protected.areas, filename=paste0(output.directory,"ProtectedAreas_v4"), format="GTiff", overwrite=T)
 
 # create constant protected areas layer
   protected.areas.constant <- protected.areas
   protected.areas.constant[protected.areas.constant>3] <- 4
-  writeRaster(protected.areas.constant, filename=paste0(output.directory,"ProtectedAreas_Constant_v3"), format="GTiff", overwrite=T)
+  writeRaster(protected.areas.constant, filename=paste0(output.directory,"ProtectedAreas_Constant_v4"), format="GTiff", overwrite=T)
 
   
 plot(protected.areas, zlim=c(3,6),legend=F,col = rev(terrain.colors(4)), main="Security of Protected Areas",axes=F)
@@ -204,9 +221,9 @@ The security layer was then clipped by the Lower Hunter vegetation mask for incl
 ```{r clip protected areas by vegetation mask for zonation, warning=FALSE,error=FALSE,echo=FALSE,message=FALSE,tidy=TRUE, results='hide'}
 setwd("~/GIS_data/Hunter/Plans/PA data for Amy - LH/")
   
-protected.areas.constant.clip <- mask(protected.areas.constant,LH.clipping.mask, filename=paste0(output.directory,"ProtectedAreas_Constant_v3_clipped"), format="GTiff", overwrite=T)
+protected.areas.constant.clip <- mask(protected.areas.constant,LH.clipping.mask, filename=paste0(output.directory,"ProtectedAreas_Constant_v4_clipped"), format="GTiff", overwrite=T)
 
-protected.areas.clip <- mask(protected.areas,LH.clipping.mask, filename=paste0(output.directory,"ProtectedAreas_v3_clipped"), format="GTiff", overwrite=T)
+protected.areas.clip <- mask(protected.areas,LH.clipping.mask, filename=paste0(output.directory,"ProtectedAreas_v4_clipped"), format="GTiff", overwrite=T)
 
 
 plot(protected.areas.constant.clip, legend=F, main="Protected Areas (clipped)",axes=F)
@@ -216,6 +233,17 @@ plot(protected.areas.clip, zlim=c(3,6),legend=F,col = rev(terrain.colors(4)), ma
 
 ```
 
+
+```{r plots}
+png(paste0(output.directory,"Protected_Areas_v4.png"),width=15,height=15,units = "cm",pointsize=12,bg="transparent",res=300)
+par(mfrow=c(2,1))
+  plot(protected.areas, zlim=c(3,6),legend=F,col = rev(terrain.colors(4)),axes=F,box=F)
+    plot(LH.shp,add=T)
+  plot(protected.areas.clip, zlim=c(3,6),legend=F,col = rev(terrain.colors(4)),axes=F,box=F)
+    plot(LH.shp,add=T)
+    legend("bottomright", bty="n",legend = c("High", "Medium", "Low"), fill = terrain.colors(4)[1:3])
+dev.off()
+```
 
 ```{r create word document, echo=FALSE,eval=FALSE}
 setwd("~/RSP/R Code")

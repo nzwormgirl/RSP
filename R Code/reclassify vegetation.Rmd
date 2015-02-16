@@ -13,7 +13,7 @@ packages(raster)
 packages(rgdal)
 packages(maptools)
 
-greater.hunter <- raster("~/GIS_data/Hunter/mask files/GH.mask.tif")
+greater.hunter <- raster("~/GIS_data/Hunter/mask files/GH_PM.mask.tif")
 lower.hunter <- raster("~/GIS_data/Hunter/mask files/LH.mask.tif")
 
   # reclassify the greater hunter vegetation
@@ -59,7 +59,7 @@ lower.hunter <- raster("~/GIS_data/Hunter/mask files/LH.mask.tif")
 
   
   # merge the lower and greater hunter vegetation data together, placing the lower hunter data on top
-  final.veg <- mask(merge(portmac.veg,pm.crafti.veg,lh.veg,ghm.veg),greater.hunter)
+  final.veg <- mask(crop(merge(portmac.veg,pm.crafti.veg,lh.veg,ghm.veg),greater.hunter),greater.hunter)
 
   plot(final.veg,axes=F,legend=F,box=F)
 
@@ -75,7 +75,14 @@ lower.hunter <- raster("~/GIS_data/Hunter/mask files/LH.mask.tif")
   levels(portmac.veg) <- raster.attributes
   levels(final.veg) <- raster.attributes
 
-writeRaster(final.veg,filename="~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/vegetation/final_vegetation.tif", ovewrite=TRUE, datatype='INT1U')
+writeRaster(final.veg,filename="~/GIS_data/Hunter/Maxent_files/ghm.pm_environmental_data/vegetation/final_vegetation.tif", ovewrite=TRUE, datatype='INT1U')
+
+native.veg <- final.veg
+  native.veg[!is.na(native.veg)] <- 1
+  native.veg[is.na(native.veg)] <- 0
+  native.veg <- mask(native.veg,greater.hunter)
+
+writeRaster(native.veg,filename="~/GIS_data/Hunter/Maxent_files/ghm.pm_environmental_data/vegetation/native_vegetation.tif", ovewrite=TRUE, datatype='INT1U')
 
 
 
