@@ -11,6 +11,8 @@ rm(list=ls())
 library(dplyr)
 library(raster)
 library(maptools)
+library(RColorBrewer)
+library(fields)
 
 # computer <- "~" #My computer
 #computer <- "Z:/Amy" #Super computer
@@ -208,12 +210,12 @@ dev.off()
 
 ```{r species richness & spatial uncertainty}
 
-gh.sdms <- dir("//654cw-20990/Amy/GIS_data/Hunter/zonation/greater hunter/extant",pattern="SDM_GH.tif",full.names=T)
-
-  gh.sdms.stack <- stack(gh.sdms[!grepl(gsub(" ","_",paste0(poorly.modelled$Species,collapse="|")),gh.sdms)])
-  
-  species.richness <- sum(gh.sdms.stack)
-    writeRaster(species.richness,paste0(maxent.dir,"GH.species.richness.tif"))
+# gh.sdms <- dir("//654cw-20990/Amy/GIS_data/Hunter/zonation/greater hunter/extant",pattern="SDM_GH.tif",full.names=T)
+# 
+#   gh.sdms.stack <- stack(gh.sdms[!grepl(gsub(" ","_",paste0(poorly.modelled$Species,collapse="|")),gh.sdms)])
+#   
+#   species.richness <- sum(gh.sdms.stack)
+#     writeRaster(species.richness,paste0(maxent.dir,"GH.species.richness.tif"))
 
   species.richness <- raster(paste0(maxent.dir,"GH.species.richness.tif"))
   mean.uncertainty <- raster(paste0("//654cw-20990/Amy/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/mean.uncertainty_2015-01-09.tif"))

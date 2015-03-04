@@ -109,6 +109,11 @@ output <- output[order(output$Species),]
 envi.order <- envi.parameters[envi.parameters %in% names(output)] 
 output <- output[,envi.order]
 
+# remove species that shouldn't be included in summary
+sp.remove <- c("Lathamus discolor","Anthochaera phrygia","Chalcites osculans","Dicksonia antarctica","Eucalyptus oblonga","Isopogon dawsonii","Tregellasia capito")
+
+output <- output[!output$Species %in% sp.remove,] 
+
 write.csv(output,paste0(maxent.dir,"LH.DotE report - maxent summary.csv"),row.names=F)
 
 poorly.modelled <- output[output$Test.AUC<0.7,c("Taxa","Species","Status","MNES","N.records","Test.AUC","AUC.Standard.Deviation")]
