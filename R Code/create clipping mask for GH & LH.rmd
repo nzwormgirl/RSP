@@ -52,6 +52,10 @@ Create a clippling mask that is used to cut the MaxEnt output for use in Zonatio
 
 # create Hunter Valley (7 LGA) mask
   HV.mask <- crop(rasterize(HV.shp,GH.mask,value=1),HV.shp, filename="~/GIS_data/Hunter/mask files/HV.mask.tif",format="GTiff",overwrite=T)
+
+# create Port Macquarie mask
+ PM.shp <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/Port MacQuarie/PMHC LGA boundary.shp")
+    PM.mask <- crop(rasterize(PM.shp,GH_PM.mask,value=1),PM.shp, filename=paste0(computer,"/GIS_data/Hunter/mask files/PM.mask.tif"),format="GTiff",overwrite=T)
 ```
 
 The clipping masks are based on remnant vegetation after standardising the layer for all other data layers included in the Maxent models.  This removes areas where data may be missing in any layer.  
@@ -94,6 +98,10 @@ UH.veg <- mask(crop(GH.veg,UH.mask),UH.mask,filename="~/GIS_data/Hunter/mask fil
 
 # HV clipping mask
 HV.veg <- mask(crop(GH.veg,HV.mask),HV.mask,filename="~/GIS_data/Hunter/mask files/HV.clipping.mask.tif",format="GTiff",overwrite=T)
+
+# PM clipping mask
+PM.veg <- mask(crop(GH_PM.veg,PM.mask),PM.mask,filename=paste0(computer,"/GIS_data/Hunter/mask files/HV.clipping.mask.tif"),format="GTiff",overwrite=T)
+
 ```
 
 ```{r wyong}
