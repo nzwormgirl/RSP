@@ -54,8 +54,8 @@ aus.shp <- readShapePoly("//654cw-20990/Amy/GIS_data/Australia/australia_one pol
 newcastle <- spTransform(LH.shp,GDA94)
 ```
 
-```{r Figure 1}
-png("Figure1.png",width=190,height=120,units="mm",res=300,bg="transparent")
+```{r Figure 1 - png}
+png(paste0(output_path,"results/Figure1.png"),width=190,height=120,units="mm",res=300,bg="transparent")
 par(mfrow=c(2,2),oma=c(1,1,0,0),mar=c(1,0.5,0.5,0.5),xpd=NA)
 plot(LH.clipping.mask,col='lightgrey',axes=F,box=F,legend=F)
 #   plot(LH.clipping.mask,col='lightgrey',add=T,legend=F)
@@ -101,6 +101,52 @@ dev.off()
 
 ```
 
+```{r Figure 1 - tif}
+tiff(paste0(output_path,"results/Figure1-300dpi.tif"),width=190,height=120,units="mm",res=300)
+par(mfrow=c(2,2),oma=c(1,1,0,0),mar=c(1,0.5,0.5,0.5),xpd=NA)
+plot(LH.clipping.mask,col='lightgrey',axes=F,box=F,legend=F)
+#   plot(LH.clipping.mask,col='lightgrey',add=T,legend=F)
+  plot(pa.coal,breaks=c(seq(0,1,0.2),4,seq(4.1,5,0.2)),col=c(brewer.pal(9,'Greys')[5:9],brewer.pal(9,'Greens')[4],brewer.pal(9,'Greens')[5:9]),legend=F,add=T)
+  plot(LH.shp,add=T)
+legend("bottomright",fill=c(brewer.pal(9,'Greens')[4],"lightgrey"),legend=c("Protected areas","Remnant vegetation"),bty="n",cex=0.8,inset=c(0,0.01))
+image.plot(add = T,col=brewer.pal(9,'Greys')[5:9],legend.only=T,zlim=c(0,1),axis.args=list(at=c(0,1),labels=c("Low: 0","High: 1"), cex.axis=0.6),legend.args=list(text='Probability of mining', side=3, cex=0.6,adj=0),horizontal=T,smallplot=c(0.01,0.21,0.1,0.12))
+ 
+# mtext(x=356981, y=6307763, "Low: 0",cex=0.5)
+# text(x=376981, y=6296766, "High: 0",cex=0.5)
+ mtext("A",side=3,adj = 0,font = 2,line =-1.5)
+
+# plot(LH.clipping.mask,col='whitesmoke',axes=F,box=F,legend=F)
+plot(condition,breaks=seq(0,1,0.25),col=c(brewer.pal(4,'Greens')),axes=F,box=F,legend=F)
+#   plot(LH.clipping.mask,col='lightgrey',add=T,legend=F)
+plot(LH.shp,add=T)
+image.plot(add = T,col=brewer.pal(9,'Greens'),legend.only=T,zlim=c(0,1),axis.args=list(at=c(0,1),labels=c("Low: 0","High: 1"), cex.axis=0.6),legend.args=list(text='Condition', side=3, cex=0.7,adj=0),horizontal=T,smallplot=c(0.01,0.21,0.1,0.12))
+#   legend(axis.args=list(at=c(0,1),labels=c("Low: 0","High: 1"), cex.axis=0.6),   legend.args=list(text='Condition', side=3, font=2, cex=0.7),legend.shrink=0.3,legend.width=0.6,"topleft")
+# legend("topleft",legend(axis.args=list(at=c(0,1),labels=c("Low: 0","High: 1"), cex.axis=0.6),   legend.args=list(text='Condition', side=3, font=2, cex=0.7),legend.shrink=0.3,legend.width=0.6,"topleft"))
+mtext("B",side=3,adj = 0,font = 2,line=-1.5)
+
+plot(LH.clipping.mask,col='lightgrey',axes=F,box=F,legend=F)
+  plot(cas.cun.extant,zlim=c(20,1000),legend=F,add=T,col=brewer.pal(9,"Greens")[3:9])
+  plot(LH.shp,add=T)
+  mtext("C",side=3,adj = 0,font = 2,line=-1.5)
+image.plot(add = T,col=brewer.pal(9,'Greens'),legend.only=T,zlim=c(0,1),legend.shrink=0.5,legend.width=1,axis.args=list(at=c(0,1),labels=c("Low: 0","High: 1"), cex.axis=0.6),legend.args=list(text='Likelihood of occurrence', side=3, cex=0.7,adj=0),horizontal=T,smallplot=c(0.01,0.21,0.1,0.12),legend.line=0)
+scalebar(d = 30000,type = "bar",label = c(0,15,30),cex=0.7,xy = c(295500,6385000),xpd=NA)
+
+plot(LH.clipping.mask,col='lightgrey',axes=F,box=F,legend=F)
+  plot(cas.cun.retention,legend=F,add=T,col=brewer.pal(9,"Greens")[3:9])
+  plot(LH.shp,add=T)
+  image.plot(add = T,col=brewer.pal(9,'Greens'),legend.only=T,zlim=c(0,1),legend.shrink=0.5,legend.width=1,axis.args=list(at=c(0,1),labels=c("Low: 0","High: 1"), cex.axis=0.6),legend.args=list(text='Restoration potential', side=3, cex=0.65,adj=0),horizontal=T,smallplot=c(0.01,0.21,0.1,0.12))
+
+  mtext("D",side=3,adj = 0,font = 2,line=-1.5)
+
+par(new = TRUE)
+par(fig = c(0.78, 1, 0.0, 0.3),mar=c(1.5,1.5,1.5,1.5))
+plot(aus.shp,xlim=c(131,136),ylim=c(-44,-10),lwd=0.75,border=T,col="white")
+plot(GH.shp,add=T,col=brewer.pal(9,"Greens")[9],border=brewer.pal(9,"Greens")[9])
+# box(which="plot")
+
+dev.off()
+
+```
 
 ```{r import priority data}
 rank.files <- c("Output/output_LHcoal_extant_0.5mining.rank.asc","Output/output_LHcoal_restore_0.5mining_PA.rank.asc","Output/output_LHcoal_retention_0.5mining_PA.rank.asc")
