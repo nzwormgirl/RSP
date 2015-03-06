@@ -100,7 +100,7 @@ UH.veg <- mask(crop(GH.veg,UH.mask),UH.mask,filename="~/GIS_data/Hunter/mask fil
 HV.veg <- mask(crop(GH.veg,HV.mask),HV.mask,filename="~/GIS_data/Hunter/mask files/HV.clipping.mask.tif",format="GTiff",overwrite=T)
 
 # PM clipping mask
-PM.veg <- mask(crop(GH_PM.veg,PM.mask),PM.mask,filename=paste0(computer,"/GIS_data/Hunter/mask files/HV.clipping.mask.tif"),format="GTiff",overwrite=T)
+PM.veg <- mask(crop(GH_PM.veg,PM.mask),PM.mask,filename=paste0(computer,"/GIS_data/Hunter/mask files/PM.clipping.mask.tif"),format="GTiff",overwrite=T)
 
 ```
 
