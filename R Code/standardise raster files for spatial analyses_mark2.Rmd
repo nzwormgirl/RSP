@@ -28,7 +28,7 @@ setwd(working.directory)
   region.mask <- raster("~/GIS_data/Hunter/mask files/GH_PM.mask.tif")
 
   # vegetation
-  veg.rasters <- stack(dir("vegetation", pattern="*.tif$", recursive=T, full.names=T))
+  veg.rasters <- stack(dir("vegetation", pattern="*.tif$", recursive=F, full.names=T))
     # set the non-native/non-vegetated areas to zero
     r <- veg.rasters[["final_vegetation"]]
     r[is.na(r)] <- 0
