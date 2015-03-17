@@ -75,8 +75,8 @@ presence.absence <- function(x) { x[x<threshold] <- 0
     
     file.name <- gsub(" ","_",file.name)
   
-    writeRaster(r_filt, paste0(output.dir,"veg.",radius,file.name,".tif"), overwrite=TRUE)
-    cat("\n","Saved",paste0(output.dir,"veg.",radius,file.name),"\n","\n")
+#     writeRaster(r_filt, paste0(output.dir,"veg.",radius,file.name,".tif"), overwrite=TRUE)
+#     cat("\n","Saved",paste0(output.dir,"veg.",radius,file.name),"\n","\n")
   
   return(r_filt)
   
@@ -88,6 +88,7 @@ Create percentage cover rasters for each of the Keith formations in the GHM at t
 ```{r run_ghm_analysis}
 
 final.veg <- raster(paste0(output.dir,"final_vegetation.tif"))
+  final.veg <- extend(final.veg,extent(final.veg)+5000)
 
 ghm.veg.reclass <- read.csv("~/GIS_data/Hunter/vegetation/ghm_veg_reclassify.csv")
 
@@ -95,11 +96,13 @@ ghm.veg.reclass <- read.csv("~/GIS_data/Hunter/vegetation/ghm_veg_reclassify.csv
   veg.types <- veg.types[!is.na(veg.types$num),]
 
 # create a sampling mask
-  GH.mask <- raster("~/GIS_data/Hunter/mask files/GH_PM.mask.tif")
-    GH.mask[!is.na(GH.mask)] <- 1
+  GH_PM.mask <- raster("~/GIS_data/Hunter/mask files/GH_PM.mask.tif")
+    GH_PM.mask[!is.na(GH_PM.mask)] <- 1
+
+  GH_PM.mask.extend <- extend(GH_PM.mask,extent(GH_PM.mask)+5000)
         
 # get the resolution of the mask raster
-  resolution <- xres(GH.mask)
+  resolution <- xres(GH_PM.mask)
   
 # ## Generate ascii files with percentage cover within 500 m radius
 #   radius <- resolution*5
@@ -119,14 +122,20 @@ radius <- resolution*20
 # set the circular filter
   cf<-make_circ_filter(radius, resolution)
 
-pb <- txtProgressBar(min = 0, max = length(veg.types$num), style=3)
+# pb <- txtProgressBar(min = 0, max = length(veg.types$num), style=3)
+pb <- txtProgressBar(min = 0, max = 3, style=3)
 
-for(i in seq(veg.types$num)) {
+# for(i in seq(veg.types$num)) {
+for(i in c(1,2,7)) {
   try({
     r <- final.veg  
     r[r!=veg.types$num[i]] <- 0
-    generate.pc.ascii(veg.types$class[i],GH.mask,r)
+    test <- generate.pc.ascii(veg.types$class[i],GH_PM.mask,r)
+      test <- mask(crop(test,GH_PM.mask),GH_PM.mask)
+    writeRaster(test, paste0(output.dir,"veg.",radius,gsub(" ","_",veg.types$class[i]),".tif"), overwrite=TRUE)
+    
     setTxtProgressBar(pb, i)
+    rm(test)
   })
  }
 
