@@ -18,6 +18,7 @@ computer <- "//654cw-20990/Amy/"
 input.dir <- paste0(computer,"GIS_data/Hunter/Maxent_files/ghm.pm/")
 
 gh.pm.clipping.mask <- raster(paste0(computer,"GIS_data/Hunter/mask files/GH_PM.clipping.mask.tif"))
+lh.clipping.mask <- raster(paste0(computer,"GIS_data/Hunter/mask files/LH.clipping.mask.tif"))
 
 ```
 
@@ -26,21 +27,33 @@ gh.pm.clipping.mask <- raster(paste0(computer,"GIS_data/Hunter/mask files/GH_PM.
 ```{r load rasters}
 taxa <- c("amphibians","birds","mammals","plants","reptiles")
 
-output <- d(taxa=rep(NA,1000),species=NA,cor=NA)
+output <- d(taxa=rep(NA,1000),species=NA,cor=NA,cor.LH=NA,all.AUC=NA,bio.AUC=NA)
 n.row <- 1
 for(k in seq(taxa)){
-  asc.files <- dir(paste0(input.dir,"all_variables/output/",taxa[k],"/Model3/"),"_avg.asc",full.names=F)
+  asc.files <- dir(paste0(input.dir,"bioclimatic/output/",taxa[k],"/Model3/"),"_avg.asc",full.names=F)
   cat(taxa[k],"\n")
+  
+  all.maxentResults <- read.csv(paste0(input.dir,"all_variables/output/",taxa[k],"/pre1750v2/CV/maxentResults.csv"))
+  bio.maxentResults <- read.csv(paste0(input.dir,"bioclimatic/output/",taxa[k],"/Model3/maxentResults.csv"))
+  
   pb <- txtProgressBar(min=0,max=length(asc.files),initial=0,style=3)
   
   for(i in seq(asc.files)){
     
-    all <- mask(raster(paste0(input.dir,"all_variables/output/",taxa[k],"/Model3/",asc.files[i])),gh.pm.clipping.mask)
-    bioclimatic <- mask(raster(paste0(input.dir,"bioclimatic/output/",taxa[k],"/Model3/",asc.files[i])),gh.pm.clipping.mask)
-    
-    output$taxa[n.row] <- taxa[k]
-    output$species[n.row] <- gsub("_"," ",gsub("_avg","",names(all)))
-    output$cor[n.row] <- cor(getValues(all),getValues(bioclimatic),use = "pairwise.complete.obs")
+    try({
+      all <- mask(raster(paste0(input.dir,"all_variables/output/",taxa[k],"/pre1750v2/CV/",asc.files[i])),gh.pm.clipping.mask)
+      bioclimatic <- mask(raster(paste0(input.dir,"bioclimatic/output/",taxa[k],"/Model3/",asc.files[i])),gh.pm.clipping.mask)
+      
+      all.LH <- mask(crop(all,lh.clipping.mask),lh.clipping.mask)
+      bioclimatic.LH <- mask(crop(bioclimatic,lh.clipping.mask),lh.clipping.mask)
+      
+      output$taxa[n.row] <- taxa[k]
+      output$species[n.row] <- gsub("_"," ",gsub("_avg","",names(all)))
+      output$cor[n.row] <- cor(getValues(all),getValues(bioclimatic),use = "pairwise.complete.obs", method="spearman")
+      output$cor.LH[n.row] <- cor(getValues(all.LH),getValues(bioclimatic.LH),use = "pairwise.complete.obs",, method="spearman")
+      output$all.AUC[n.row] <- all.maxentResults$Test.AUC[all.maxentResults$Species==paste0(gsub(" ","_",output$species[n.row])," (average)")]
+      output$bio.AUC[n.row] <- bio.maxentResults$Test.AUC[bio.maxentResults$Species==paste0(gsub(" ","_",output$species[n.row])," (average)")]
+    })
     
     n.row <- n.row+1
     rm(all,bioclimatic)
@@ -53,9 +66,28 @@ for(k in seq(taxa)){
 
 output <- output[complete.cases(output),]
 
-par(mfrow=c(2,1))
-hist(output$cor,main="Correlation btwn bioclimatic & vegetation SDMs")
-boxplot(output$cor~output$taxa,main="Correlation btwn bioclimatic & vegetation SDMs")
+png("Correlation btwn bioclimatic & vegetated.png",bg="transparent",width=20,height=20,res=300,units="cm",pointsize=14)
+  par(mfrow=c(2,1),mar=c(4,6,2,0),las=1,bty='n',oma=c(0,0,0,0))
+  # hist(output$cor,main="Correlation btwn bioclimatic & vegetation SDMs")
+  boxplot(output$cor,horizontal = T,bty="n",xlab="Correlation",ylim=c(0.5,1))
+  
+  # par(mar=c(4,8,1,1),las=1,bty='n')
+  boxplot(output$bio.AUC,output$all.AUC,horizontal = T,xlab="AUC",ylim=c(0.5,1),axes=F)
+  axis(1,at=seq(0.5,1,0.1))
+  axis(2,label=c(paste0("Vegetation","\n","excluded"),paste0("Vegetation","\n","included")),at=c(1,2),tick=F)
+dev.off()
+
+png("Correlation btwn bioclimatic & vegetated - LH.png",bg="transparent",width=20,height=20,res=300,units="cm",pointsize=14)
+  par(mfrow=c(2,1),mar=c(4,6,2,0),las=1,bty='n',oma=c(0,0,0,0))
+  # hist(output$cor,main="Correlation btwn bioclimatic & vegetation SDMs")
+  boxplot(output$cor.LH,horizontal = T,bty="n",xlab="Correlation",ylim=c(0.5,1))
+  
+  # par(mar=c(4,8,1,1),las=1,bty='n')
+  boxplot(output$bio.AUC,output$all.AUC,horizontal = T,xlab="AUC",ylim=c(0.5,1),axes=F)
+  axis(1,at=seq(0.5,1,0.1))
+  axis(2,label=c(paste0("Vegetation","\n","excluded"),paste0("Vegetation","\n","included")),at=c(1,2),tick=F)
+dev.off()
+
 
 write.csv(output,paste0(input.dir,"Model3_veg.bioclimatic.correlations.csv"),row.names=F)
 ```
