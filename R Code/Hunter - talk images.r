@@ -7,7 +7,12 @@ species.data <- read.csv("~/GIS_data/Hunter/Maxent_files/species_data/maxent.dat
 cma.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Hunter/Plans/HCCREMS_AreaOfInterest/HCCREMS_AoI_GDAtm.shp")
 lh.mask <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/LHRS_Study_Area.shp")
 
-png("GH species points.png",height=10,width=10,units="cm",res=300)
+png("GH species points.png",height=10,width=10,units="cm",res=300,bg="transparent")
+par(mar=c(0,0,0,0),oma=c(0,0,0,0))
+plot(cma.mask,axes=F, legend=F,box="n",col="whit")
+dev.off()
+
+png("GH boundary.png",height=10,width=10,units="cm",res=300)
 plot(hccrems.raster,col="grey", axes=F, legend=F,box="n")
 points(species.data$easting,species.data$northing, pch=".")
 dev.off()
@@ -15,6 +20,13 @@ dev.off()
 png("Morepork species points.png",height=10,width=10,units="cm",res=300)
 plot(hccrems.raster,col="grey", axes=F, legend=F,box="n")
 points(species.data$easting[species.data$species=="Ninox novaeseelandiae"],species.data$northing[species.data$species=="Ninox novaeseelandiae"], pch=".")
+dev.off()
+
+uncertainty <- mask(raster("//654cw-20990/Amy/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/mean.uncertainty.tif"),cma.mask)
+veg.colour <- brewer.pal(9,"Reds")
+png("uncertainty.png",height=10,width=10,units="cm",res=300,bg="transparent")
+par(mar=c(0,0,0,0),oma=c(0,0,0,0))
+plot(uncertainty, axes=F, legend=F, box="n", col=veg.colour)
 dev.off()
 
 
