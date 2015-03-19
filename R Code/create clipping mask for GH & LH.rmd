@@ -85,10 +85,10 @@ LH.exurban.mask <- min(LH.exurban.mask,LH.lakes.mask)
   writeRaster(GH.veg,filename="~/GIS_data/Hunter/mask files/GH.clipping.mask.tif",format="GTiff",overwrite=T)
 
 # Greater Hunter & Port Mac clipping mask
-  GH_PM.veg <- raster("~/GIS_data/Hunter/Maxent_files/ghm.pm_environmental_data/standardised_rasters/final_vegetation.asc",crs=GDA94.56)
+  GH_PM.veg <- raster(paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/environmental_data/standardised_rasters/final_vegetation.asc"),crs=GDA94.56)
   GH_PM.veg[GH_PM.veg==0] <- NA  
   GH_PM.veg[!is.na(GH_PM.veg)] <- 1
-  writeRaster(GH_PM.veg,filename="~/GIS_data/Hunter/mask files/GH_PM.clipping.mask.tif",format="GTiff",overwrite=T)
+  writeRaster(GH_PM.veg,filename=paste0(computer,"/GIS_data/Hunter/mask files/GH_PM.clipping.mask.tif"),format="GTiff",overwrite=T)
 
 # LH clipping mask
   LH.veg <- mask(crop(GH.veg,LH.mask),LH.exurban.mask,filename="~/GIS_data/Hunter/mask files/LH.clipping.mask.tif",format="GTiff",overwrite=T)
