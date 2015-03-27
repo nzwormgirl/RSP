@@ -10,6 +10,8 @@ packages(rgdal)
 packages(spatstat)
 packages(sp)
 packages(raster)
+packages(RColorBrewer)
+packages(fields)
 
   GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
   GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
@@ -117,7 +119,7 @@ unique(GH.coal_titles.shp$TITLE_CODE)
   UH.coal.prob <- crop(mask(GH.coal.prob,UH.mine.shp),UH.mask)
   UH.coal.prob.scaled <- (UH.coal.prob-cellStats(UH.coal.prob,min))/(cellStats(UH.coal.prob,max)-cellStats(UH.coal.prob,min))
 
-writeRaster(GH.coal.prob.scaled,paste0("~/GIS_data/Hunter/Scenarios/coal data/DPI/GH.coalforChris.tif"),format="GTiff",overwrite=T)
+writeRaster(GH.coal.prob.scaled,paste0("~/GIS_data/Hunter/Scenarios/coal data/GH.coalforChris.tif"),format="GTiff",overwrite=T)
 writeRaster(LH.coal.prob.scaled,paste0("~/GIS_data/Hunter/zonation/lower hunter/coal tifs/mining_100_LHcoal.tif"),format="GTiff",overwrite=T)
 writeRaster(UH.coal.prob.scaled,paste0("~/GIS_data/Hunter/zonation/upper hunter/coal tifs/mining_100_UHcoal.tif"),format="GTiff",overwrite=T)
 
@@ -126,6 +128,40 @@ writeRaster(UH.coal.prob.scaled,paste0("~/GIS_data/Hunter/zonation/upper hunter/
 
 ```
 
+```{r generate GH zonation mask rasters}
+## Note that these are currently set at the quantiles rather than the actual "probability"
+
+#set LH masks so that the background value is 3 for the zonation runs
+  GH.mask[!is.na(GH.mask)] <- 3
+#   LH.urban.clipping.mask[!is.na(LH.urban.clipping.mask)] <- 3
+
+prob.range <- seq(0.05,1,by=0.05)
+
+pdf("~/GIS_data/Hunter/Scenarios/coal data/Potential coal scenarios.pdf",paper="a4r",width=0,height=0)
+  plot(GH.coal.prob.scaled,main=paste0("Probability of mining","\n","based on borehole density & mining titles"),axes=F,zlim=c(0,1),box=F,col=brewer.pal(9,"YlOrRd"),legend=F)
+    image.plot(r, legend.only=T, box=F, zlim=c(0,1),axis.args=list(at=c(0,1),labels=c("Low","High")),legend.shrink=0.3,legend.width=1,col=brewer.pal(9,"YlOrRd"),cex.axis=0.75)
+    plot(GH.shp,add=T)
+
+for(i in seq(prob.range)){
+  
+  r <- GH.coal.prob.scaled
+  r[r> quantile(GH.coal.prob.scaled,na.rm=TRUE,probs=(1-prob.range[i]))] <- 1
+  r[r!=1] <- 3
+  
+  r <- merge(r,GH.mask,filename=paste0("~/GIS_data/Hunter/Scenarios/coal data/mining_",prob.range[i],"_GHcoal.tif"),format="GTiff",overwrite=T)
+  
+#   r <- mask(r,LH.urban.clipping.mask,filename=paste0("~/GIS_data/Hunter/zonation/lower hunter/coal tifs/mining_",prob.range[i],"_LHcoal.clipped.tif"),format="GTiff",overwrite=T)
+  
+  
+  plot(r,main=paste0("Top ",prob.range[i]*100,"% of mining probability"),axes=F,legend=F,col=brewer.pal(9,"YlOrRd")[9],box=F,zlim=c(0,1))
+ plot(GH.shp,add=T)
+      
+}
+
+dev.off()
+
+
+```
 
 ```{r generate LH zonation mask rasters}
 ## Note that these are currently set at the quantiles rather than the actual "probability"
@@ -181,3 +217,5 @@ for(i in seq(prob.range)){
 
 
 ```
+
+
