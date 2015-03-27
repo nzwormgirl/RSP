@@ -1,0 +1,132 @@
+Title
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r load_data}
+rm(list=ls())
+library(raster)
+library(maptools)
+library(plotrix)
+library(fields)
+
+# computer <- "Z:/Amy"
+computer <- "//654cw-20990/Amy"
+
+zonation.dir <- paste0(computer,"/GIS_data/Hunter/zonation/port macquarie/")
+
+maxent.dir <- paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/")
+
+threatened.sp <- read.csv(paste0(computer,"/GIS_data/Hunter/species point data/IBRA threatened species list.csv"))
+
+asc.files <- dir(zonation.dir, pattern="SDM.PM.tif$")
+
+region.mask <- raster(paste0(zonation.dir,asc.files[1]))
+  proj4string(region.mask) <- "+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+
+species.data <- read.csv(paste0(maxent.dir,"/species_data/maxent.data_ALA.NSW.csv"))
+  coordinates(species.data) <- c("x","y")
+  proj4string(species.data) <- "+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs"
+
+  species.data$veg <- extract(region.mask,species.data)
+  species.data <- as.data.frame(species.data)
+  species.data <- species.data[!is.na(species.data$veg),]
+write.csv(species.data,paste0(zonation.dir,"output/modelled species point data in PMH LGA.csv"))
+  
+lga <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/Port MacQuarie/PMHC LGA boundary.shp")
+
+# newcastle <- data.frame(easting=386288.67,northing=6355926.73)
+#   coordinates(newcastle) <- c("easting","northing")
+
+taxa <- c("mammals", "amphibians", "plants", "birds", "reptiles")
+
+species <- gsub("_"," ",gsub("_SDM.PM.tif","",asc.files))
+modelled.species <- threatened.sp[match(species,threatened.sp$Scientific.Name),]
+
+poorly.modelled <- read.csv(paste0(maxent.dir,"all_variables/output/DotE report - poorly modelled species.csv"))
+
+```
+
+
+
+```{r create pdf files}
+setwd(zonation.dir)
+
+for(k in seq(taxa)){
+    
+   maxentResults.CV <- read.csv(paste0(maxent.dir,"all_variables/output/",taxa[k],"/pre1750v2/CV/MaxentResults.csv"))
+    maxentResults.CV <- maxentResults.CV[grepl("average",maxentResults.CV$Species),]
+    
+   maxentResults.Full <- read.csv(paste0(maxent.dir,"all_variables/output/",taxa[k],"/pre1750v2/Full/MaxentResults.csv"))
+  
+   parameters <- c("Species","X.Training.samples","Test.AUC","AUC.Standard.Deviation",names(maxentResults.Full[grepl("permutation.importance",names(maxentResults.Full))]))
+  
+  maxentResults.CV <- maxentResults.CV[,names(maxentResults.CV) %in% as.character(parameters[c(1,3:4)])]
+  
+  maxentResults.Full <- maxentResults.Full[,names(maxentResults.Full) %in% as.character(parameters[c(2,5:14)])]
+  
+  maxentResults <- cbind(maxentResults.CV,maxentResults.Full)
+    names(maxentResults) <- gsub("X\\.|X2000|.permutation.importance","",names(maxentResults))
+    maxentResults$Species <- gsub("_"," ",gsub(" \\(average\\)","",maxentResults$Species))
+        
+    parameters <- colnames(maxentResults)
+#       parameters <- parameters[grepl(".permutation",parameters)]
+
+   family <- unique(modelled.species$Family[modelled.species$Taxa==taxa[k]])
+      family <- family[order(family)]
+      family <- family[!is.na(family)]
+  
+  cat("\n","\n","Generating pdf for",  taxa[k],"\n")
+      pdf(paste0("output/",taxa[k],"_Modelled species_",format(Sys.time(), "%d %b %Y"),".pdf"),paper="a4r",width=0,height=0)
+        page <- 1
+    
+    for(j in seq(family)){
+      sp.list <- modelled.species$Scientific.Name[modelled.species$Taxa==taxa[k] & modelled.species$Family==family[j]]
+        sp.list <- sp.list[!is.na(sp.list)]
+        sp.list <- setdiff(sp.list,poorly.modelled$Species)
+      
+      cat("\n"," Family:",as.character(family[j])) 
+   
+      if(length(sp.list) > 0){
+        for(i in 1:length(sp.list)){
+          sp <- gsub(" ","_",sp.list[i])
+          r <- raster(paste0(zonation.dir,sp,"_SDM.PM.tif"))
+          sp.points <- species.data[species.data$species==as.character(sp.list[i]),c("x","y")]
+          results <- maxentResults[maxentResults$Species==sp.list[i],]
+          GH.records <- results$Training.samples
+                  if(nrow(results)>0){
+                    results <- round(results[,c("Test.AUC","AUC.Standard.Deviation",as.character(parameters[-c(1:4)]))],2)
+#                     colnames(results) <- gsub(".permutation.importance|X","",colnames(results))
+                    results <- cbind(GH.records,PM.records=nrow(sp.points),AUC=paste0(results$Test.AUC," (",results$AUC.Standard.Deviation,")"), results)
+                    results <- results[,colnames(results)!=c("Test.AUC") & colnames(results)!=c("AUC.Standard.Deviation")]
+                    results <- t(results)
+                  }
+                  
+                par(xpd=NA,mar=c(2,7,2,2.5))
+                plot(r/1000, legend=F, axes=F,box=F, zlim=c(0,1))
+    #               arg <- list(at=c(0,0.5,1), labels=c("0.0","0.5","1.0"),cex.axis=0.75)
+                  image.plot(r/1000, legend.only=T, box=F, zlim=c(0,1),lab.breaks=c("0.0","0.5","1.0"),legend.shrink=0.3,legend.width=1,col=rev(terrain.colors(100)),cex.axis=0.75)
+                  plot(lga,add=T, border="grey")
+              #   points(newcastle, pch=16,cex)
+               
+                points(sp.points,pch=".",col="black")
+                mtext(side=3,line=1,font=3,sp.list[i])
+                mtext(side=3,line=1,paste0(toupper(taxa[k]),": ",family[j]),adj=0,cex=0.75)
+                mtext(side=1,line=1,paste0("Page ", page,": ",format(Sys.time(), "%d %b %Y")),adj=1,cex=0.75)
+                
+             if(nrow(results)>0){ 
+               addtable2plot(411842,6495648,table=results,display.rownames=T,display.colnames=F,cex=0.7,yjust=0.5,xjust=0,bg=NA)
+              }
+          
+          cat("\n","Plotting",as.character(sp.list[i]),"to pdf")
+          page <- page+1
+        }
+      }
+    }
+  
+  dev.off()
+   }
+
+```
