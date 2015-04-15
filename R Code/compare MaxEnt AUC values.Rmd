@@ -1,0 +1,45 @@
+---
+title: "Compare MaxEnt AUC values"
+author: "Amy Whitehead"
+date: "Wednesday, April 15, 2015"
+output: html_document
+---
+
+
+```{r setup}
+rm(list=ls())
+
+computer <- "Z:/Amy"
+
+maxent.dir <- paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/")
+
+taxa <- c("birds")
+
+# read maxent files
+pre1750v2 <- read.csv(paste0(maxent.dir,taxa,"/pre1750v2/CV/maxentResults.csv"))
+pre1750v3 <- read.csv(paste0(maxent.dir,taxa,"/pre1750v3_PMHC/CV/maxentResults.csv"))
+combined <- pre1750v3[grepl("average",pre1750v3$Species),c("Species","X.Training.samples","Test.AUC","AUC.Standard.Deviation")]
+for(i in seq(combined$Species)){
+ try({
+   combined$X.Training.samples.v2[i] <- pre1750v2$X.Training.samples[pre1750v2$Species==as.character(combined$Species[i])]
+  combined$Test.AUC.v2[i] <- pre1750v2$Test.AUC[pre1750v2$Species==as.character(combined$Species[i])]
+  combined$AUC.standard.deviation.v2[i] <- pre1750v2$AUC.Standard.Deviation[pre1750v2$Species==as.character(combined$Species[i])]
+
+  })
+ }
+
+combined$diff.AUC <- combined$Test.AUC-combined$Test.AUC.v2
+
+boxplot(combined$diff.AUC)
+boxplot(combined$Test.AUC)
+
+write.csv(combined,paste0(maxent.dir,"Comparison of AUC for birds in pre1750v2 & pre1750v3_PMHC.csv"),row.names=F)
+```
+
+You can also embed plots, for example:
+
+```{r, echo=FALSE}
+plot(cars)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
