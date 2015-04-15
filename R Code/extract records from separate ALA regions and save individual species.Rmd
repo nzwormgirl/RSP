@@ -12,7 +12,12 @@ The script loops through each taxonomic group and extracts the records for speci
 ```{r functions, highlight=TRUE}
 # set working directory
 rm(list=ls())
-setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data")
+
+# computer <- "C:/Users/awhitehead/Documents"
+computer <- "G:/UM backup"
+
+directory <- paste0(computer,"/GIS_data/Hunter/species point data")
+setwd(directory)
 
 # a function that binds two dataframes together by rows, keeping only columns with the same names
 rbind.columns <- function(x, y,type="all") {
@@ -59,12 +64,12 @@ combine.records <- function (NC.records, SB.records) {
 #open mnes species list
 # mnes.species <- read.csv("EPBC list species NSW.csv", skip=1)
 
-mnes.species <- read.csv("C:/Users/awhitehead/Documents/GIS_data/Australia-wide/species data/all EPBC listed species 27May2013.csv")
+# mnes.species <- read.csv(paste0(directory,"/GIS_data/Australia-wide/species data/all EPBC listed species 27May2013.csv"))
 
 # open the list of threatened and interesting species for potential analysis
 protected.species <- read.csv("IBRA threatened species list.csv")
-   protected.species$mnes <- "FALSE"
-  protected.species$mnes[which(protected.species$Scientific.Name %in% mnes.species$scientific.name ==TRUE)] <- "TRUE"
+#    protected.species$mnes <- "FALSE"
+#   protected.species$mnes[which(protected.species$Scientific.Name %in% mnes.species$scientific.name ==TRUE)] <- "TRUE"
 
 
 # generate threatened species list
@@ -79,7 +84,7 @@ taxa <- c("mammals", "amphibians", "plants", "reptiles","birds","arthropods")
 ```
 
 ```{r analysis_ALA}
-setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data")
+setwd(paste0(computer,"/GIS_data/Hunter/species point data"))
 
 # loop through each taxonomic group and extract records based on the threatened species list
 for (k in seq(taxa)){
@@ -115,7 +120,7 @@ write.csv(protected.species, "IBRA threatened species list.csv", row.names=FALSE
 
 
 ```{r analysis_NSW}
-setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data")
+setwd(paste0(computer,"/GIS_data/Hunter/species point data"))
 
 # loop through each taxonomic group and extract records based on the threatened species list
 for (k in seq(taxa)){
@@ -157,7 +162,7 @@ write.csv(protected.species, "IBRA threatened species list.csv", row.names=FALSE
 
 
 ```{r analysis_OEH}
-setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data")
+setwd(paste0(computer,"/GIS_data/Hunter/species point data"))
 
 # loop through each taxonomic group and extract records based on the threatened species list
 
@@ -229,4 +234,40 @@ species.list <- unique(plant.input$Scientific.Name)
 
 
 ```
+
+```{r data from Port Macquarie}
+setwd(paste0(computer,"/GIS_data/Hunter/species point data"))
+
+bird.input <- read.csv("Port Macquarie/BirdLife_Data_Port_Macquarie_LGA.csv")
+
+species.list <- unique(bird.input$Scientific.Name)
+
+  for(i in seq(species.list)){
+    bird.records <- extract("Port Macquarie","Port Macquarie",bird.input,species.list[i]) 
+        
+    if(is.null(bird.records)==FALSE) {
+#       bird.records$YEAR <- 2014
+      bird.records$taxa <- "birds"
+      bird.records$source <- "PMHC"
+      protected.species$Downloaded.PM[grepl(species.list[i],protected.species$Scientific.Name)] <- "yes"
+      protected.species$PM.records[grepl(species.list[i],protected.species$Scientific.Name)] <- nrow(bird.records) + protected.species$OEH.records[grepl(species.list[i],protected.species$Scientific.Name)]
+      suppressWarnings(try({
+        PM.records <- read.csv(paste0("Port Macquarie data/",species.list[i],".csv"))
+          PM.records$source <- "PMHC"
+        bird.records <- rbind.columns(PM.records,bird.records)
+        }))
+        
+      write.csv(bird.records, paste0("Port Macquarie data/",species.list[i],".csv"),row.names=FALSE)
+      cat("Exported",nrow(bird.records), "records for", as.character(species.list[i]),"\n","\n")
+      }
+      suppressWarnings(rm(bird.records,P.records))
+      gc()
+  }
+
+
+```
+
+
+
+
 *This file was last updated on 12 April 2013 and last run on `r format(Sys.time(), "%d %B %Y")`.*
