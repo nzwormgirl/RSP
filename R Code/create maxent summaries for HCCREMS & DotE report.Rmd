@@ -15,10 +15,10 @@ library(RColorBrewer)
 library(fields)
 
 # computer <- "~" #My computer
-#computer <- "Z:/Amy" #Super computer
-computer <- "//654cw-20990/Amy"
+computer <- "Z:/Amy" #Super computer
+# computer <- "//654cw-20990/Amy"
 
-source("C:/Users/awhitehead/Dropbox/Random R code/rbind.columns.r")
+source("R code/rbind.columns.r")
 
 # define paths for input and output files
   maxent.dir <- paste0(computer,'/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/')
@@ -33,7 +33,7 @@ source("C:/Users/awhitehead/Dropbox/Random R code/rbind.columns.r")
   GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
   GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 
-  GH.shp <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Hunter/Plans/HCCREMS_AreaOfInterest/HCCREMS_AoI.shp", proj4=GDA94)
+  GH.shp <- readShapePoly(paste0(computer,"/GIS_data/Hunter/Plans/HCCREMS_AreaOfInterest/HCCREMS_AoI.shp"), proj4=GDA94)
     GH.shp <- spTransform(GH.shp,GDA94.56)
   GH.clipping.mask <- raster(paste0(computer,"/GIS_Data/Hunter/mask files/GH_PM.clipping.mask.tif"))
 
@@ -52,10 +52,13 @@ strip.names <- function(x){
 ```{r extract maxent results}
 envi.parameters <- c("Taxa","Family","Species","Status","MNES","N.records","Training.samples","N.trees","Test.AUC","AUC.Standard.Deviation","cold_temp","hot_temp","mean_rain","seasonal_rain","mean_solar","slope","rugg1000","terr1000","wetness","final_vegetation","2000Dry_sclerophyll_forests","2000Rainforests","2000Wet_sclerophyll_forests","soil")
 
+
 for (i in seq(taxa)){
-  maxentResults.CV <- read.csv(paste0(maxent.dir,taxa[i],"/pre1750v2/CV/MaxentResults.csv"))
+  version <- ifelse(taxa[i]=="birds","/pre1750v3_PMHC","/pre1750v2")
+  
+  maxentResults.CV <- read.csv(paste0(maxent.dir,taxa[i],version,"/CV/MaxentResults.csv"))
     maxentResults.CV <- maxentResults.CV[grepl("average",maxentResults.CV$Species),]
-  maxentResults.Full <- read.csv(paste0(maxent.dir,taxa[i],"/pre1750v2/Full/MaxentResults.csv"))
+  maxentResults.Full <- read.csv(paste0(maxent.dir,taxa[i],version,"/Full/MaxentResults.csv"))
   parameters <- c("Species","X.Training.samples","Test.AUC","AUC.Standard.Deviation",names(maxentResults.Full[grepl("permutation.importance",names(maxentResults.Full))]))
   
   maxentResults.CV <- maxentResults.CV[,names(maxentResults.CV) %in% as.character(parameters[1:4])]
@@ -80,7 +83,7 @@ envi.order <- envi.parameters[envi.parameters %in% names(maxentResults)]
 maxentResults <- maxentResults[,envi.order]
 
 assign(paste0(taxa[i],"_MR"),maxentResults)
- write.csv(maxentResults,paste0(maxent.dir,taxa[i],"_DotE report - maxent summary.csv"),row.names=F) 
+#  write.csv(maxentResults,paste0(maxent.dir,taxa[i],"_DotE report - maxent summary.csv"),row.names=F) 
 }
 
 ```
@@ -105,7 +108,7 @@ envi.order <- envi.parameters[envi.parameters %in% names(maxentResults)]
 maxentResults <- maxentResults[,envi.order]
 
 assign(paste0("EEC_MR"),maxentResults)
- write.csv(maxentResults,paste0(maxent.dir,"EEC_DotE report - maxent summary.csv"),row.names=F)  
+#  write.csv(maxentResults,paste0(maxent.dir,"EEC_DotE report - maxent summary.csv"),row.names=F)  
 
 ```
 
@@ -120,10 +123,10 @@ output <- output[order(output$Species),]
 envi.order <- envi.parameters[envi.parameters %in% names(output)] 
 output <- output[,envi.order]
 
-write.csv(output,paste0(maxent.dir,"GH DotE report - maxent summary.csv"),row.names=F)
+write.csv(output,paste0(maxent.dir,"GH DotE report - maxent summary.v3_PMHC.csv"),row.names=F)
 
 poorly.modelled <- output[output$Test.AUC<0.7,c("Taxa","Species","Status","MNES","N.records","Test.AUC","AUC.Standard.Deviation")]
-write.csv(poorly.modelled,paste0(maxent.dir,"DotE report - poorly modelled species.csv"),row.names=F)
+write.csv(poorly.modelled,paste0(maxent.dir,"DotE report - poorly modelled species.v3_PMHC.csv"),row.names=F)
 ```
 
 ```{r mean summary table}
@@ -190,7 +193,7 @@ for(i in seq(envi.parameters)){
 summary.table <- summary.table[!grepl("\\.se",row.names(summary.table)),]
 row.names(summary.table) <- gsub("\\.mean","",row.names(summary.table))
   
-write.csv(summary.table,paste0(maxent.dir,"GH DotE report - maxent parameter summary.csv"),row.names=T)
+write.csv(summary.table,paste0(maxent.dir,"GH DotE report - maxent parameter summary.v3_PMHC.csv"),row.names=T)
 
 ```
 

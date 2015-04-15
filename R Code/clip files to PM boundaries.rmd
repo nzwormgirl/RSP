@@ -12,8 +12,8 @@ library(raster)
 library(maptools)
 
 #computer <- "~" #My computer
-# computer <- "Z:/Amy" #Super computer
-computer <- "//654cw-20990/Amy"
+computer <- "Z:/Amy" #Super computer
+# computer <- "//654cw-20990/Amy"
 
 # directories
 # location of GH files
@@ -47,9 +47,9 @@ computer <- "//654cw-20990/Amy"
     tec.data$PM.points <- NA
     tec.data$PM.sdm <- NA
 
-# delete all existing tifs in lower hunter folder
+# delete all existing tifs in port macquarie folder
 ## only run this if you definitely want to delete these files!!
-tifs <- dir(PM.zonation.dir, pattern="_PM.tif$",full.names=T)
+tifs <- dir(PM.zonation.dir, pattern=".PM.tif$",full.names=T)
 # file.remove(tifs)
 
 taxa <- c("amphibians","birds","mammals","reptiles","plants")
@@ -100,9 +100,10 @@ Clip species
 ```{r identify maxent species within PM}
 # import maxent point data for GH data
   maxent.data <- read.csv(paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/species_data/maxent.data_ALA.NSW.csv"))
-    colnames(maxent.data) <- c("easting","northing","species")
+#     colnames(maxent.data) <- c("easting","northing","species")
 
-maxent.summary <- read.csv(paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/GH DotE report - maxent summary.csv"))
+# maxent.summary <- read.csv(paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/GH DotE report - maxent summary.csv"))
+maxent.summary <- read.csv(paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/GH DotE report - maxent summary.v3_PMHC.csv"))
 
 # create list of unique MaxEnt species
   me.species <- data.frame(species=unique(maxent.data$species),AUC=NA,in.GH=NA,in.PM=NA,GH.max=NA,PM.max=NA)
