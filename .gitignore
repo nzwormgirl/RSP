@@ -9,3 +9,16 @@ reporting
 *.png
 *.pdf
 *.html
+packrat/lib*/
+Hunter
+LH.urban.tif
+Northern Australia
+Pilbara
+RSP environmental data.xlsx
+names.csv
+packrat
+patch.size.mask.10.tif
+patchsize.4000_conservationpriority.tif
+patchsize.5000_conservationpriority.tif
+small.patches.mask.tif
+.Rprofile
