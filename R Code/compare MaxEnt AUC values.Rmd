@@ -18,6 +18,10 @@ taxa <- c("birds")
 # read maxent files
 pre1750v2 <- read.csv(paste0(maxent.dir,taxa,"/pre1750v2/CV/maxentResults.csv"))
 pre1750v3 <- read.csv(paste0(maxent.dir,taxa,"/pre1750v3_PMHC/CV/maxentResults.csv"))
+
+new.species <- setdiff(pre1750v3$Species,pre1750v2$Species)
+  new.species <- new.species[grepl("average",new.species)]
+
 combined <- pre1750v3[grepl("average",pre1750v3$Species),c("Species","X.Training.samples","Test.AUC","AUC.Standard.Deviation")]
 for(i in seq(combined$Species)){
  try({
@@ -30,16 +34,12 @@ for(i in seq(combined$Species)){
 
 combined$diff.AUC <- combined$Test.AUC-combined$Test.AUC.v2
 
+png(paste0(maxent.dir,"pre1750v2_pre1750v3_PMHC-AUC_values.png"),width=17,height=10,units="cm",res=300,pointsize=12,bg="transparent")
+  par(mfrow=c(1,2),mar=c(3,0,0,0),oma=c(2,0,1,0),xpd=NA)
 boxplot(combined$diff.AUC)
 boxplot(combined$Test.AUC)
+dev.off()
 
 write.csv(combined,paste0(maxent.dir,"Comparison of AUC for birds in pre1750v2 & pre1750v3_PMHC.csv"),row.names=F)
 ```
 
-You can also embed plots, for example:
-
-```{r, echo=FALSE}
-plot(cars)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
