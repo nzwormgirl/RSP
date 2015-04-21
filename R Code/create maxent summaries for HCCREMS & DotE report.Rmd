@@ -15,18 +15,11 @@ library(RColorBrewer)
 library(fields)
 
 # computer <- "~" #My computer
-<<<<<<< HEAD
 #computer <- "Z:/Amy" #Super computer
 # computer <- "//654cw-20990/Amy"
 computer <- "H:/Super Computer Data"
 
-source("D:/Amy/Dropbox/Random R code/rbind.columns.r")
-=======
-computer <- "Z:/Amy" #Super computer
-# computer <- "//654cw-20990/Amy"
-
 source("R code/rbind.columns.r")
->>>>>>> 1d6045cd5fbbf9af37fc48905584bdb0fc35cd3c
 
 # define paths for input and output files
   maxent.dir <- paste0(computer,'/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/')
@@ -41,11 +34,7 @@ source("R code/rbind.columns.r")
   GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
   GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 
-<<<<<<< HEAD
-  GH.shp <- readShapePoly("G:/UM backup/GIS_data/Hunter/Plans/HCCREMS_AreaOfInterest/HCCREMS_AoI.shp", proj4=GDA94)
-=======
   GH.shp <- readShapePoly(paste0(computer,"/GIS_data/Hunter/Plans/HCCREMS_AreaOfInterest/HCCREMS_AoI.shp"), proj4=GDA94)
->>>>>>> 1d6045cd5fbbf9af37fc48905584bdb0fc35cd3c
     GH.shp <- spTransform(GH.shp,GDA94.56)
   GH.clipping.mask <- raster(paste0(computer,"/GIS_Data/Hunter/mask files/GH_PM.clipping.mask.tif"))
 
