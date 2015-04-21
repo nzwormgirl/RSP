@@ -15,8 +15,9 @@ library(RColorBrewer)
 library(fields)
 
 # computer <- "~" #My computer
-computer <- "Z:/Amy" #Super computer
+#computer <- "Z:/Amy" #Super computer
 # computer <- "//654cw-20990/Amy"
+computer <- "H:/Super Computer Data"
 
 source("R code/rbind.columns.r")
 
@@ -43,7 +44,7 @@ source("R code/rbind.columns.r")
 trim <- function (x) gsub("^\\s+|\\s+$", "", x)
 
 strip.names <- function(x){
-  trim(gsub("_"," ",gsub("extant\\/|\\_GH|\\.tif|SSI|SDM|DotE\\/|\\//|654cw-20990|\\/|Amy|GIS_data|Hunter|zonation|greater hunter","",x)))
+  trim(gsub("_"," ",gsub("extant\\/|\\.GH|\\.tif|SSI|SDM|DotE\\/|\\//|654cw-20990|\\/|Amy|GIS_data|Hunter|zonation|greater hunter","",x)))
 }
 
 

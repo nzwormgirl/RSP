@@ -22,7 +22,9 @@ packages(sp)
 packages(rgdal)
 packages(raster)
 
-setwd("~/GIS_data/Hunter/species point data/")
+computer <- "G:/UM backup"
+
+setwd(paste0(computer,"/GIS_data/Hunter/species point data/"))
  #load("Maxent_Zonation.Rdata")
 
 # set output options
@@ -54,16 +56,16 @@ combine.records <- function (NC.records, SB.records) {
   map <- get_map(location = c(151.250,-32.490), zoom = 8, maptype="terrain", color="bw")
 
 # import regional shapefiles for mapping and data filtering  
-  hunter.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Hunter/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/LHRS_Study_Area.shp", proj4=GDA94.56)
+  hunter.mask <- readShapePoly(paste0(computer,"/GIS_data/Hunter/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/LHRS_Study_Area.shp"), proj4=GDA94.56)
     hunter.mask <- spTransform(hunter.mask, GDA94)
     hunter.mask.data <- fortify(hunter.mask)
-  cma.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Hunter/Plans/HCR_CMA/HCR_CMA_GDA94.shp", proj4=GDA94)
+  cma.mask <- readShapePoly(paste0(computer,"/GIS_data/Hunter/Plans/HCR_CMA/HCR_CMA_GDA94.shp"), proj4=GDA94)
     cma.mask.data <- fortify(cma.mask)
-  ibra.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Hunter/Plans/Bioregions/hunter_bioregions.shp", proj4=GDA94)
+  ibra.mask <- readShapePoly(paste0(computer,"/GIS_data/Hunter/Plans/Bioregions/hunter_bioregions.shp"), proj4=GDA94)
     ibra.mask.data <- fortify(ibra.mask)
-  hccrem.mask <- readShapePoly("C:/Users/awhitehead/Documents/GIS_data/Hunter/Plans/HCCREMS_AreaOfInterest/HCCREMS_AoI.shp", proj4=GDA94)
+  hccrem.mask <- readShapePoly(paste0(computer,"/GIS_data/Hunter/Plans/HCCREMS_AreaOfInterest/HCCREMS_AoI.shp"), proj4=GDA94)
     hccrem.mask.data <- fortify(hccrem.mask)
-  GH_PM.mask <- readShapePoly("~/GIS_data/Hunter/mask files/GH_PM.shp", proj4=GDA94.56)
+  GH_PM.mask <- readShapePoly(paste0(computer,"/GIS_data/Hunter/mask files/GH_PM.shp"), proj4=GDA94.56)
     GH_PM.mask <- spTransform(GH_PM.mask,GDA94)
     GH_PM.mask.data <- fortify(GH_PM.mask)
 
@@ -80,7 +82,7 @@ combine.records <- function (NC.records, SB.records) {
   min.accuracy <- 14
 
 # open species list
-  protected.species <- read.csv("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/IBRA threatened species list.csv")
+  protected.species <- read.csv(paste0(computer,"/GIS_data/Hunter/species point data/IBRA threatened species list.csv"))
 
 # identify the threatened species of interest for analysis
   threatened.species <- protected.species[protected.species$ignore!="Y",]
@@ -145,7 +147,7 @@ if(include.brut == TRUE) {
 ```{r ALA_NSW_analysis, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
 # this takes data from the ALA and NSW atlases and identifies which have sufficient data within the Hunter region
 
-setwd("C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/")
+setwd(paste0(computer,"/GIS_data/Hunter/species point data/"))
 atlas.maxent.data <- maxent.data
 ssi.zonation.data <- maxent.data
 
@@ -159,6 +161,7 @@ for (i in seq(species.list)){
   ALA.data <- NULL
   NSW.data <- NULL
   OEH.data <- NULL
+  PM.data <- NULL
   
   # extract ALA data
   suppressWarnings(try({
@@ -201,9 +204,25 @@ for (i in seq(species.list)){
     discarded.records <- rbind(discarded.records,OEH.data[OEH.data$accuracy.digits < min.accuracy,c("species","longitude","latitude","database")])
     OEH.data <- OEH.data[OEH.data$accuracy.digits >=min.accuracy,]
   },silent=T))
-  
+
+suppressWarnings(try({
+    PM.data <- read.csv(paste0("Port Macquarie data/",species.list[i],".csv"))
+      PM.labels <- c("Lat","Lon")
+    colnames(PM.data)[which(names(PM.data) %in% PM.labels)] <- c("latitude", "longitude")
+      PM.data$Rdate <- strptime(PM.data$Start.date, "%d/%m/%Y")
+      if(threatened.species$Taxa[threatened.species$Scientific.Name == species.list[i]] != "plants") PM.data <- PM.data[!is.na(PM.data$Rdate >= min.date),]
+    PM.data$index <- paste(sprintf("%.6f",PM.data$latitude), sprintf("%.6f",PM.data$longitude))
+    PM.data$database <- "PM"
+    PM.data$species <- species.list[i]
+    PM.data$accuracy.digits <- nchar(PM.data$latitude,type="chars") + nchar(PM.data$longitude,type="chars")
+    discarded.records <- rbind(discarded.records,PM.data[PM.data$accuracy.digits < min.accuracy,c("species","longitude","latitude","database")])
+    PM.data <- PM.data[PM.data$accuracy.digits >=min.accuracy,]
+  },silent=T))
+
+
   ALA.NSW.data <- combine.records(ALA.data[,c("species","longitude","latitude","database")],NSW.data[,c("species","longitude","latitude","database")])
     ALA.NSW.data <- combine.records(ALA.NSW.data,OEH.data[,c("species","longitude","latitude","database")])
+    ALA.NSW.data <- combine.records(ALA.NSW.data,PM.data[,c("species","longitude","latitude","database")])
   
  tryCatch({
    coordinates(ALA.NSW.data) <- c("longitude", "latitude")
@@ -236,7 +255,7 @@ for (i in seq(species.list)){
         }   
     
     # remove all species-specific datafiles, so they don't mess up the next round of the loop
-    suppressWarnings(rm(ALA.data, NSW.data, OEH.data, ALA.NSW.data, GH_PM.sp,in.hunter,sp.map,))
+    suppressWarnings(rm(ALA.data, NSW.data, OEH.data, PM.data,ALA.NSW.data, GH_PM.sp,in.hunter,sp.map,))
     gc()
        
  }, error=function(err) cat(""), warning=function(war) cat(""))
@@ -244,7 +263,7 @@ for (i in seq(species.list)){
   setWinProgressBar(pb, i, label = sprintf("%g%% done", round(i/length(species.list),2)*100))
 }
   
-  colnames(atlas.maxent.data) <- c("longitude","latitude","species","database")
+  colnames(atlas.maxent.data) <- c("species","longitude","latitude","database")
 # close pdf file
   if(save.maps == TRUE) dev.off()
   close(pb)
@@ -272,7 +291,7 @@ h(gda_maxent.data)
 
   # convert back to a dataframe
   gda.tm_maxent.data <- as.data.frame(project_maxent.data)
-    colnames(gda.tm_maxent.data) <- c("easting","northing","species","database")
+    colnames(gda.tm_maxent.data) <- c("species","database","easting","northing")
     # hack to get the ALA records in the same projection as the Bionet records
     gda.tm_maxent.data$northing[gda.tm_maxent.data$database=="ALA"] <- gda.tm_maxent.data$northing[gda.tm_maxent.data$database=="ALA"] + 176.9
     gda.tm_maxent.data$easting[gda.tm_maxent.data$database=="ALA"] <- gda.tm_maxent.data$easting[gda.tm_maxent.data$database=="ALA"] + 104
@@ -281,7 +300,7 @@ h(gda_maxent.data)
 
   # remove duplicate records for each species (i.e. keep only one for each grid cell)
   # used the solid mask to keep records that occur in non-vegetated regions
-  GH.PM.raster <- raster("~/GIS_Data/Hunter/mask files/GH_PM.mask.tif")
+  GH.PM.raster <- raster(paste0(computer,"/GIS_Data/Hunter/mask files/GH_PM.mask.tif"))
   hunter.mask.tm <- spTransform(hunter.mask, GDA94.56)
   GH_PM.mask.tm <- spTransform(GH_PM.mask, GDA94.56)
 
@@ -331,22 +350,22 @@ export.species <- unique(export_maxent.data$species)
                                   
 # save data for species with greater than the minimum number of records after the minimum date in the Hunter region to one file for Maxent analysis
 if(save.output ==TRUE) {
-  if(include.ALA == TRUE) write.csv(export_maxent.data, "~/GIS_data/Hunter/Maxent_files/species_data/maxent.data_ALA.NSW.csv",row.names=FALSE)
+  if(include.ALA == TRUE) write.csv(export_maxent.data, paste0(computer,"/GIS_data/Hunter/Maxent_files/species_data/maxent.data_ALA.NSW.csv"),row.names=FALSE)
    
-  if(include.ALA == FALSE) write.csv(export_maxent.data, "~/GIS_data/Hunter/Maxent_files/species_data/maxent.data_NSW.csv",row.names=FALSE)
+  if(include.ALA == FALSE) write.csv(export_maxent.data, paste0(computer,"/GIS_data/Hunter/Maxent_files/species_data/maxent.data_NSW.csv"),row.names=FALSE)
 
   taxa <- unique(protected.species$Taxa)
   
   for(t in seq(taxa)){
     taxa.species <- intersect(protected.species$Scientific.Name[which(protected.species$Taxa==taxa[t])],export_maxent.data$species)
     taxa.maxent <- export_maxent.data[export_maxent.data$species %in% taxa.species,]
-    write.csv(taxa.maxent,paste0("~/GIS_data/Hunter/Maxent_files/species_data/maxent.data_",taxa[t],".csv"),row.names=FALSE )
+    write.csv(taxa.maxent,paste0(computer,"/GIS_data/Hunter/Maxent_files/species_data/maxent.data_",taxa[t],".csv"),row.names=FALSE)
     rm(taxa.species, taxa.maxent)
   }
 
   
 # save changes to the protected species file  
-  write.csv(protected.species, "~/GIS_data/Hunter/species point data/IBRA threatened species list.csv", row.names=FALSE)
+  write.csv(protected.species, paste0(computer,"/GIS_data/Hunter/species point data/IBRA threatened species list.csv"), row.names=FALSE)
 
   cat("\n", nrow(export_maxent.data), "records for", length(export.species), "species exported to maxent.data.csv")
   }
@@ -355,8 +374,8 @@ if(save.output ==TRUE) {
 
 
 ```{r ssi_data, message=FALSE, warning=FALSE, comment="", tidy=TRUE}
-  colnames(export_ssi.zonation.data) <- c("easting","northing","species","database")
-  colnames(ssi.zonation.data) <- c("longitude","latitude","species","database")
+  colnames(export_ssi.zonation.data) <- c("species","database","easting","northing")
+  colnames(ssi.zonation.data) <- c("species","longitude","latitude","database")
   gda_ssi.zonation.data <- ssi.zonation.data[,c("species","longitude","latitude","database")]
 
   h(gda_ssi.zonation.data)
@@ -372,7 +391,7 @@ if(save.output ==TRUE) {
 
   # convert back to a dataframe
   gda.tm_ssi.zonation.data <- as.data.frame(project_ssi.zonation.data)
-    names(gda.tm_ssi.zonation.data)[1:2] <- c("easting","northing")
+    names(gda.tm_ssi.zonation.data)[3:4] <- c("easting","northing")
     gda.tm_ssi.zonation.data$northing[gda.tm_ssi.zonation.data$database=="ALA"] <- gda.tm_ssi.zonation.data$northing[gda.tm_ssi.zonation.data$database=="ALA"] + 176.9
     gda.tm_ssi.zonation.data$easting[gda.tm_ssi.zonation.data$database=="ALA"] <- gda.tm_ssi.zonation.data$easting[gda.tm_ssi.zonation.data$database=="ALA"] + 104
 
@@ -381,7 +400,7 @@ if(save.output ==TRUE) {
 ssi.sp <- unique(gda.tm_ssi.zonation.data$species)
   # remove duplicate records for each species (i.e. keep only one for each grid cell)
   pb <- winProgressBar(title = "Converting SSI data", label = "0% done",min = 0, max = length(ssi.sp), initial = 0, width = 300)
-    for(i in seq()){
+    for(i in seq(ssi.sp)){
       input <- gda.tm_ssi.zonation.data[gda.tm_ssi.zonation.data$species==ssi.sp[i],]
       # identify points that fall on the GH clipping mask
         point <- which(!is.na(extract(GH.PM.raster,input[,c("easting","northing")]))==TRUE)
@@ -411,13 +430,13 @@ if(save.output ==TRUE) {
     for (i in seq(ssi.export.species)) {
       export <- export_ssi.zonation.data[export_ssi.zonation.data$species == ssi.export.species[i],]
         export <- export[,colnames(export)!="database"]
-      write.table(export[,!names(export) %in% c("species")], paste0("~/GIS_data/Hunter/zonation/greater hunter/ssi_files/",ssi.export.species[i],"_GH.txt"),row.names=FALSE, sep="\t", col.names=FALSE)
+      write.table(export[,!names(export) %in% c("species")], paste0(computer,"/GIS_data/Hunter/zonation/greater hunter/ssi_files/",ssi.export.species[i],"_GH.PM.txt"),row.names=FALSE, sep="\t", col.names=FALSE)
       setWinProgressBar(pb, i, label = sprintf("%g%% done", round(i/length(ssi.export.species),2)*100 ))
     }
     close(pb) 
-    write.csv(protected.species, "C:/Users/awhitehead/Documents/GIS_data/Hunter/species point data/IBRA threatened species list.csv", row.names=FALSE)
+    write.csv(protected.species, paste0(computer,"/GIS_data/Hunter/species point data/IBRA threatened species list.csv"), row.names=FALSE)
   
-  cat("\n", nrow(export_ssi.zonation.data), "records exported to", length(ssi.export.species), "individual ssi csv files for greater hunter")
+  cat("\n", nrow(export_ssi.zonation.data), "records exported to", length(ssi.export.species), "individual ssi csv files for GH & PMHC")
     }
   
   if(export.ssi == "tif"){
@@ -427,7 +446,7 @@ if(save.output ==TRUE) {
     speciesRaster <- merge(speciesRaster,mask.raster)
     #label the raster
     names(speciesRaster) <- raster.label
-   writeRaster(speciesRaster,paste0("C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/greater hunter/",raster.label,"_GH.tif"), format="GTiff",overwrite=T)
+   writeRaster(speciesRaster,paste0(computer, "/GIS_data/Hunter/zonation/greater hunter/",raster.label,"_GH.PM.tif"), format="GTiff",overwrite=T)
   cat("Converted",raster.label,"to raster","\n")
 }
   pb <- winProgressBar(title = "Exporting SSI data as tif", label = "0% done",min = 0, max = length(ssi.export.species), initial = 0, width = 300)  
@@ -460,11 +479,11 @@ h(discarded.records)
 
   # convert back to a dataframe
   project_discarded.records <- as.data.frame(project_discarded.records)
-    names(project_discarded.records)[1:2] <- c("easting","northing")
+    names(project_discarded.records)[3:4] <- c("easting","northing")
 
   h(project_discarded.records)
 
-  write.csv(discarded.records, "C:/Users/awhitehead/Documents/GIS_data/Hunter/Maxent_files/species_data/discarded.records.csv",row.names=FALSE)
+  write.csv(discarded.records, paste0(computer,"/GIS_data/Hunter/Maxent_files/species_data/discarded.records.csv"),row.names=FALSE)
 
 ```
 
