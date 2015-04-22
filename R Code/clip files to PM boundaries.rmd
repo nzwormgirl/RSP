@@ -25,6 +25,9 @@ computer <- "Z:/Amy" #Super computer
 # GH zonation directory
   GH_PM.zonation.dir <- paste0(computer,"/GIS_data/Hunter/zonation/GH_PM/extant/")
 
+# Use updated bird SDMs from pre1750v3_PMHC
+  new.birds <- TRUE
+
 # set projections
   GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
   GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
@@ -69,9 +72,10 @@ taxa <- c("amphibians","birds","mammals","reptiles","plants")
 
 clip.to.PM <- function (asc.file,mask.raster) {
     r <- raster(asc.file)
-    species <- gsub("_SDM.GH_PM.tif|Z:/|//654cw-20990/|Amy/GIS_data/Hunter/zonation/GH_PM/extant/","",asc.file)
+    species <- gsub("_SDM.GH_PM.tif|Z:/|//654cw-20990/|Amy/GIS_data/Hunter/zonation/GH_PM/extant/|Amy/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/birds/pre1750v3_PMHC/Full/|\\.asc","",asc.file)
     r <- mask(crop(r,mask.raster),mask.raster)
-    writeRaster(r,paste0(PM.zonation.dir,as.character(species),"_SDM.PM.tif"), overwrite=T)
+    if(cellStats(r,max)<1) r <- r*1000
+    writeRaster(r,paste0(PM.zonation.dir,as.character(species),"_SDM.PM.tif"), overwrite=T, datatype='INT2U')
 #     cat(" clipped",as.character(species), "to PM","\n")
   }
 
@@ -134,33 +138,10 @@ maxent.summary <- read.csv(paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm
   PM.tifs <- me.species$species[which(me.species$in.PM == TRUE & me.species$AUC>0.7) ]
     PM.tifs <- gsub(" ","_",PM.tifs)
 
-# for(i in seq(taxa)){
-#   cat("Converting",taxa[i],"\n")
-#   asc.files <- dir(paste0(maxent.dir,taxa[i],"/pre1750v2/Full/"), pattern=".asc$")
-#     asc.files <- asc.files[!grepl("pre1750",asc.files)]
-#     asc.files <- asc.files[asc.files %in% paste0(PM.tifs,".asc")]
-# 
-#   pb.species <- txtProgressBar(min=0,max=length(asc.files),initial=0,style=3)
-#   
-#   for(j in seq(asc.files)){  
-#     species <- asc.files[j] 
-#       species <- gsub("_"," ",gsub("\\.asc","",species))
-#     
-#     tryCatch({
-#       clip.to.PM(paste0(maxent.dir,taxa[i],"/pre1750v2/Full/",asc.files[j]),PM.clipping.mask)
-#       me.species[me.species$species==as.character(species),"GH.max"] <- cellStats(raster(paste0(maxent.dir,taxa[i],"/pre1750v2/Full/",asc.files[j]),crs=GDA94.56),max)
-#       me.species[me.species$species==as.character(species),"PM.max"] <- cellStats(raster(paste0(PM.zonation.dir,gsub("\\.asc","",asc.files[j]),"_SDM_PM.tif")),max)/1000
-#       
-#       if(me.species[me.species$species==as.character(species),"GH.max"]*1000 > 1){
-#         protected.species$PM.sdm[protected.species$Scientific.Name==as.character(species)] <- "SDM"
-#       }
-#     }, error=function(err) cat(""),warning=function(war) cat("Check",PM.tifs[j],"for missing tif"))
-#   setTxtProgressBar(pb.species,j)
-#   
-#   }
-#   
-#   close(pb.species)
-# }
+# clip the remaining taxa from already clipped models
+taxa <- c("amphibians","mammals","reptiles","plants")
+
+ pb.species <- txtProgressBar(min=0,max=length(asc.files),initial=0,style=3)
 
 for(j in seq(PM.tifs)){  
     species <- PM.tifs[j] 
@@ -175,19 +156,48 @@ for(j in seq(PM.tifs)){
         protected.species$PM.sdm[protected.species$Scientific.Name==as.character(species)] <- "SDM"
       }
     }, error=function(err) cat(""),warning=function(war) cat("Check",PM.tifs[j],"for missing tif","\n"))
+  setTxtProgressBar(pb.species,j)
   }
+
+close(pb.species)
+
+if(new.birds==TRUE) {
+  
+# clip from original MaxEnt outputs (birds only)
+  taxa <- "birds"
+  
+  for(i in seq(taxa)){
+    cat("Converting",taxa[i],"\n")
+    asc.files <- dir(paste0(maxent.dir,taxa[i],"/pre1750v3_PMHC/Full/"), pattern=".asc$")
+      asc.files <- asc.files[!grepl("pre1750",asc.files)]
+      asc.files <- asc.files[asc.files %in% paste0(PM.tifs,".asc")]
+  
+    pb.species <- txtProgressBar(min=0,max=length(asc.files),initial=0,style=3)
+    
+    for(j in seq(asc.files)){  
+      species <- asc.files[j] 
+        species <- gsub("_"," ",gsub("\\.asc","",species))
+      
+      tryCatch({
+        clip.to.PM(paste0(maxent.dir,taxa[i],"/pre1750v3_PMHC/Full/",asc.files[j]),PM.clipping.mask)
+        me.species[me.species$species==as.character(species),"GH.max"] <- cellStats(raster(paste0(maxent.dir,taxa[i],"/pre1750v3_PMHC/Full/",asc.files[j]),crs=GDA94.56),max)
+        me.species[me.species$species==as.character(species),"PM.max"] <- cellStats(raster(paste0(PM.zonation.dir,gsub("\\.asc","",asc.files[j]),"_SDM.PM.tif")),max)/1000
+        
+        if(me.species[me.species$species==as.character(species),"GH.max"]*1000 > 1){
+          protected.species$PM.sdm[protected.species$Scientific.Name==as.character(species)] <- "SDM"
+        }
+      }, error=function(err) cat(""),warning=function(war) cat("Check",PM.tifs[j],"for missing tif"))
+    setTxtProgressBar(pb.species,j)
+    
+    }
+    
+    close(pb.species)
+  }
+}
+
 
 # save species list output for future use
   write.csv(me.species,paste0(PM.zonation.dir,"maxent_species.list.csv"),row.names=F)
-
-
-# for(i in seq(me.species$species)){
-#   protected.species$greater.hunter[grepl(me.species$species[i],protected.species$Scientific.Name,fixed=T)] <- me.species$in.GH[me.species$species==me.species$species[i]]
-#   protected.species$GH.sdm[grepl(me.species$species[i],protected.species$Scientific.Name)] <- "SDM"
-# }
-
-# save species list output for future use
-  write.csv(me.species,paste0(computer,"/GIS_data/Hunter/zonation/port macquarie/maxent_species.list.csv"),row.names=F)
 
 ```
 
@@ -195,7 +205,7 @@ for(j in seq(PM.tifs)){
 ```{r identify species with low AUC scores in PM and convert to SSI}
  threshold <- 0.7
 
-# identify species that have low SDM values within the LH
+# identify species that have low SDM values within PMHC
   species.list <- as.character(me.species$species[me.species$PM.max/me.species$GH.max<0.25])
     species.list <- species.list[!is.na(species.list)]
   # add those species that seem to be missing SDMs  
@@ -237,20 +247,20 @@ for(i in seq(species.list)){
 
 ```{r create species SSI tifs}
 me.species <- read.csv(paste0(PM.zonation.dir,"maxent_species.list.csv"))
-  ssi.dir <- paste0(computer,"/GIS_data/Hunter/zonation/greater hunter/ssi_files/")
+  ssi.dir <- paste0(computer,"/GIS_data/Hunter/zonation/GH_PM/SSI/")
 
   ssi.species <- data.frame(species=dir(ssi.dir, pattern=".txt$"),in.PM=NA)
 
   ssi.data <- data.frame(species=NA,easting=NA,northing=NA)
 
-  ignore.ssi <- ssi.species$species[gsub("_"," ",gsub("_GH.txt","",ssi.species$species)) %in% me.species$species]
+  ignore.ssi <- ssi.species$species[gsub("_"," ",gsub("_GH.PM.txt","",ssi.species$species)) %in% me.species$species]
   if(length(ignore.ssi) > 0) ssi.species <- ssi.species[!grepl(paste0(ignore.ssi,collapse="|"),ssi.species),]
 
 for(i in seq(ssi.species$species)){
   try({
     species.data <- read.table(paste0(ssi.dir,ssi.species$species[i]),sep="\t")
     colnames(species.data) <- c("easting","northing","V3","V4")
-  species <- strsplit(as.character(ssi.species$species[i]),"_GH.txt")
+  species <- strsplit(as.character(ssi.species$species[i]),"_GH.PM.txt")
     species.data$species <- species  
     species <- gsub(" ","_",species)
     
@@ -262,7 +272,7 @@ for(i in seq(ssi.species$species)){
       ssi.species$in.PM[i] <- "TRUE"
       cat(as.character(species),"has",in.PM,"points in PM","\n")
           
-#       presence.absence.raster(PM.clipping.mask,species.data[,1:2], raster.label=species)
+      presence.absence.raster(PM.clipping.mask,species.data[,1:2], raster.label=species)
       
       ssi.data <- rbind(ssi.data,species.data[,c("species","easting","northing")])
       
@@ -323,14 +333,23 @@ close(bar)
 
 ```{r create zonation spp file}
 PM.zonation.dir <- paste0(computer,"/GIS_data/Hunter/zonation/port macquarie/") 
+
 tifs <- dir(PM.zonation.dir, pattern=".tif$")
+
+included.plants <- read.csv(paste0(PM.zonation.dir,"PMHC threatened plants to include.csv"))
+
+
+PMHC.ignore <- c("Eudyptula_minor","Morus_serrator",setdiff(protected.species$Scientific.Name[protected.species$Taxa=="plants"],included.plants$ScientificName))
+
 
 # remove species that are listed to ignore
   tifs <- tifs[!tifs %in% paste0(gsub(" ","_",protected.species$Scientific.Name[protected.species$ignore=="Y"]),"SDM.PM.tif")]
   tifs <- tifs[!tifs %in% paste0(gsub(" ","_",protected.species$Scientific.Name[protected.species$ignore=="Y"]),"SSI.PM.tif")]
+  tifs <- tifs[!tifs %in% paste0(gsub(" ","_",PMHC.ignore),"_SDM.PM.tif")]
+  tifs <- tifs[!tifs %in% paste0(gsub(" ","_",PMHC.ignore),"_SSI.PM.tif")]
 
 duplicates <- tifs[duplicated(gsub("SDM.PM.tif|SSI.PM.tif","",tifs))]
-  if(length(duplicates)>0) tifs <- tifs[!paste0(duplicates,"SDM.PM.tif")]
+  if(length(duplicates)>0) tifs <- tifs[!tifs %in% gsub("SDM","SSI",duplicates)]
 
 #export.species <- c(as.character(me.species$species[me.species$in.PM==TRUE]),as.character(ssi.species$species[ssi.species$in.PM==TRUE]))
 
@@ -358,7 +377,5 @@ write.table(PM.zonation.spp,paste0(PM.zonation.dir,"PM.zonation.weighted.spp"),s
 
 
 write.csv(protected.species,paste0(computer,"/GIS_data/Hunter/species point data/IBRA threatened species list.csv"),row.names=F)
-
-write.csv(tec.data,paste0(computer,"/GIS_data/Hunter/species point data/GreaterHunter_DRAFT_100812 (2).csv"),row.names=F)
 
 ```
