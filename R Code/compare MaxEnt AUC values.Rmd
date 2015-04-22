@@ -43,7 +43,6 @@ dev.off()
 write.csv(combined,paste0(maxent.dir,"Comparison of AUC for birds in pre1750v2 & pre1750v3_PMHC.csv"),row.names=F)
 ```
 
-<<<<<<< HEAD
 ```{r make box plots}
 computer <- "I:/Super Computer Data"
 maxent.dir <- paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/")
@@ -60,5 +59,4 @@ better.modelled <- gsub(" \\(average\\)","",setdiff(combined$Species[combined$Te
 
 
 ```
-=======
->>>>>>> cefaf0e09fc585341441842546f3102fe001955b
+
