@@ -36,10 +36,19 @@ boxplot(combined$Test.AUC)
 write.csv(combined,paste0(maxent.dir,"Comparison of AUC for birds in pre1750v2 & pre1750v3_PMHC.csv"),row.names=F)
 ```
 
-You can also embed plots, for example:
+```{r make box plots}
+computer <- "I:/Super Computer Data"
+maxent.dir <- paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/")
 
-```{r, echo=FALSE}
-plot(cars)
+combined <- read.csv(paste0(maxent.dir,"Comparison of AUC for birds in pre1750v2 & pre1750v3_PMHC.csv"))
+
+png(paste0(maxent.dir,"Comparison of bird AUC values.png"),width=20,height=15,bg="transparent",units="cm",res=300,pointsize=10)
+  par(las=1,mfrow=c(1,2))
+  boxplot(combined$Test.AUC.v2,combined$Test.AUC,names = c("Original data","PMHC data"),xlab="Test AUC")
+  boxplot(combined$diff.AUC, xlab="Difference in AUC")
+dev.off()
+
+better.modelled <- gsub(" \\(average\\)","",setdiff(combined$Species[combined$Test.AUC.v2<0.7],combined$Species[combined$Test.AUC<0.7]))
+
+
 ```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
