@@ -343,12 +343,11 @@ included.plants <- read.csv(paste0(PM.zonation.dir,"PMHC threatened plants to in
 # identify species to be excluded
 PMHC.ignore <- read.csv(paste0(PM.zonation.dir,"output/PM_new.species.csv"))
   PMHC.ignore <- PMHC.ignore$species[PMHC.ignore$ignore=="Y"]
-  PMHC.ignore <- append(PMHC.ignore,c("Eudyptula_minor","Morus_serrator",setdiff(protected.species$Scientific.Name[protected.species$Taxa=="plants"],included.plants$ScientificName)))
+  PMHC.ignore <- as.character(append(as.character(PMHC.ignore),c("Eudyptula minor","Morus serrator",setdiff(protected.species$Scientific.Name[protected.species$Taxa=="plants"],included.plants$ScientificName),as.character(protected.species$Scientific.Name[protected.species$ignore=="Y"]))))
+  PMHC.ignore <- unique(PMHC.ignore)
 
 
 # remove species that are listed to ignore
-  tifs <- tifs[!tifs %in% paste0(gsub(" ","_",protected.species$Scientific.Name[protected.species$ignore=="Y"]),"SDM.PM.tif")]
-  tifs <- tifs[!tifs %in% paste0(gsub(" ","_",protected.species$Scientific.Name[protected.species$ignore=="Y"]),"SSI.PM.tif")]
   tifs <- tifs[!tifs %in% paste0(gsub(" ","_",PMHC.ignore),"_SDM.PM.tif")]
   tifs <- tifs[!tifs %in% paste0(gsub(" ","_",PMHC.ignore),"_SSI.PM.tif")]
 
