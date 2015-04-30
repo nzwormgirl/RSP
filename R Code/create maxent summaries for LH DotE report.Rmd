@@ -12,9 +12,10 @@ library(dplyr)
 
 # computer <- "~" #My computer
 #computer <- "Z:/Amy" #Super computer
-computer <- "//654cw-20990/Amy"
+# computer <- "//654cw-20990/Amy"
+computer <- "I:/Super Computer Data/"
 
-source("C:/Users/awhitehead/Dropbox/Random R code/rbind.columns.r")
+source("H:/UM backup/RSP/R Code/rbind.columns.r")
 
 # define paths for input and output files
 maxent.dir <- paste0(computer,'/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/')
