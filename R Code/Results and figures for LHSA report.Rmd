@@ -1,0 +1,1033 @@
+
+
+```{r set up}
+rm(list=ls())
+library(raster)
+library(maptools)
+library(colorRamps)
+library(fields)
+library(reshape)
+library(ggplot2)
+library(RColorBrewer)
+
+  GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+  GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
+
+# computer
+# computer <- "~"
+computer <- "//654cw-20990/Amy"
+
+# define paths for input and output files
+input_path <- paste0(computer,'/GIS_data/Hunter/zonation/lower hunter/')
+output_path <- paste0(computer,'/GIS_data/Hunter/zonation/lower hunter/Output/')
+
+# import biodiversity feature names
+  names <- as.vector(read.table(paste0(input_path,'LH.extant.zonation.weighted.spp'), header=F, sep='\t')[,6])
+
+# # import groups file
+#   groups <- read.table(paste0(input_path,'ppsa_groups.txt'), header=F, sep='\t') # MNES == 2 in groups[,2]
+#   mnes.names <- groups[which(groups[,2]==2),1]
+#   non.mnes.names <- groups[which(groups[,2]==1),1]
+#   n.groups <- c("MNES","Non.MNES")
+#   group.curves <- data.frame(matrix(NA, 1002, (4+3*length(n.groups))))
+# 
+#   header <- c()
+#   	for (k in seq(n.groups)){
+# 			header <- c(header, paste(n.groups[k], '_min', sep=''))
+# 			header <- c(header, paste(n.groups[k], '_mean', sep=''))
+# 			header <- c(header, paste(n.groups[k], '_max', sep=''))
+# 		}
+#   colnames(group.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', header)
+# 
+# # date of the output files
+# #   analysis.date <- '20140728' # remember to update to correct date
+#   analysis.date <- '20140909'
+#   baseline.scenario <- "rank"
+# 
+#   save.plots <- FALSE
+
+LH.mask <- raster(paste0(computer,"/GIS_Data/Hunter/mask files/LH.mask.tif"))
+LH.clipping.mask <- raster(paste0(computer,"/GIS_Data/Hunter/mask files/LH.clipping.mask.tif"))
+LH.urban.clipping.mask <- raster(paste0(computer,"/GIS_Data/Hunter/mask files/LH.urban.clipping.mask.tif"))
+LH.lakes.mask <- raster(paste0(computer,"/GIS_Data/Hunter/mask files/LH.lakes.mask.tif"))
+
+# LH administrative boundary
+  LH.shp <- readShapePoly("//654cw-20990/Amy/GIS_data/Hunter/GIS data from various sources/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/5_LGAs_StudyArea.shp", proj4=GDA94.56)
+
+GH.shp <- readShapePoly("//654cw-20990/Amy/GIS_data/Hunter/Plans/HCCREMS_AreaOfInterest/HCCREMS_AoI.shp", proj4=GDA94) ## NOT FOUND?
+    GH.shp <- spTransform(GH.shp,GDA94.56)
+GH.clipping.mask <- raster(paste0(computer,"/GIS_Data/Hunter/mask files/GH_PM.clipping.mask.tif")) 
+
+
+# # load horrenda table
+protected.species <- read.csv(paste0(computer,"/GIS_data/Hunter/species point data/IBRA threatened species list.csv"))
+    sdm.species <- names[grepl("SDM",names)]
+
+# open tec list
+  tec.data <- read.csv(paste0(computer,"/GIS_data/Hunter/species point data/GreaterHunter_DRAFT_100812 (2).csv"))
+    tec.data <- tec.data[!duplicated(tec.data$TEC_Amy),c("TEC_Amy","points","LH.points","TECName","weight")]
+    tec.data$TEC_Amy <- tolower(tec.data$TEC_Amy)
+
+unweighted.priority <- raster(paste0(output_path,"output_LH_040215.rank.compressed.tif"),crs=GDA94.56)
+weighted.priority <- raster(paste0(output_path,"output_LH_weighted_040215.rank.compressed.tif"),crs=GDA94.56)
+
+```
+
+```{r useful functions}
+trim <- function (x) gsub("^\\s+|\\s+$", "", x)
+
+strip.names <- function(x){
+  trim(gsub("_"," ",gsub("extant\\/|\\.LH|\\.tif|SSI|SDM|\\_LH|DotE\\/","",x)))
+}
+
+
+```
+
+```{r colour palettes}
+map.background <- "grey90"
+
+pa.colours <- d(label=c("Level 1","Level 2","Level 3","Priority protected","Priority unprotected"),colour=c("#78c679","#31a354","#006837","#a6611a","grey40"),stringsAsFactors = F)
+
+dev.colours <- d(label=c("Existing","Proposed","Cleared","Retained"),colour=c("grey60","#fdae61","#d7191c","#2c7bb6"),stringsAsFactors = F)
+
+# colours for the curves plots - Heini
+# col.all <- c('dark grey', 'skyblue2', 'skyblue4', 'darkolivegreen3', 'darkolivegreen4')
+# col.nonmnes <- c('lightskyblue4', 'skyblue2', 'steelblue', 'dodgerblue3', 'dodgerblue4')
+# col.mnes <- c('rosybrown4', 'lightcoral', 'indianred', 'brown1', 'red4')
+
+# colours for the curves plots - Amy
+col.all <- c("grey60",brewer.pal(4,"Set1"))
+col.nonmnes <- brewer.pal(9,"Blues")[4:9]
+col.mnes <- brewer.pal(9,"Reds")[4:9]
+
+pri.col = c('grey40', 'turquoise', 'yellow', 'orange', 'red')
+pa.col = c('palegreen3', 'palegreen4')
+dev.col = c('grey60')
+
+pri.breaks <- c(0,0.7,0.85,0.9,0.95,1)
+pri.labels <- c("Top 5%","Top 10%","Top 15%","Top 30%","Rest")
+ 
+zonation.colours <- c("black","dark blue","blue","yellow","magenta","dark red", "red")
+```
+
+```{r identify cleared areas}
+
+ #how much area is cleared in each impact scenario?
+# import scenario rasters
+      scenario.files <- dir(paste0(input_path,"masks/"),pattern=".tif$",full.names=T)
+      
+      cleared_area <- data.frame(scenario=rep(NA,length(scenario.files)+3*2),cleared=NA,proposed.ha=NA,protected=NA,protected.ha=NA,total=NA)
+  
+        for(i in seq(scenario.files)){
+          r <- raster(scenario.files[i])
+          cleared_area$scenario[i] <- names(r)
+          r.max <- cellStats(r,max)
+          cleared_area$total[i] <- length(r[!is.na(r)])
+          if(grepl("Protected",scenario.files[i])==FALSE){
+            cleared_area$proposed.ha[i] <- length(r[r<r.max])
+            cleared_area$cleared[i] <- cleared_area$proposed.ha[i]/cleared_area$total[i]
+            }
+          
+          if(grepl("Protected",scenario.files[i])==TRUE){
+            cleared_area$protected.ha[i] <- length(r[r>3])
+            cleared_area$protected[i] <- cleared_area$protected.ha[i]/cleared_area$total[i]
+          }
+          cat(names(r),"\n")
+        }
+
+
+PA.steps <- scenario.files[grepl("ProtectedAreas_v4",scenario.files)]
+row <- 1 + length(scenario.files)
+
+for(j in seq(PA.steps)){
+  r <- raster(PA.steps[j])
+
+  for(i in 1:3){
+    cleared_area$scenario[row] <- gsub("//654cw-20990/Amy/GIS_data/Hunter/zonation/lower hunter/masks/","",paste0(PA.steps[j]," Level ",i))
+      r.max <- cellStats(r,max)
+      cleared_area$total[row] <- length(r[!is.na(r)])
+      cleared_area$protected.ha[row] <- length(r[r==(r.max-(i-1))])
+      cleared_area$protected[row] <- cleared_area$protected.ha[row]/cleared_area$total[row]
+    row <- row +1
+  }
+}
+
+write.csv(cleared_area,paste0(output_path,"cleared_area.csv"),row.names=F)
+
+pa.areas <- cleared_area[grepl("ProtectedAreas_v4_clipped",cleared_area$scenario),c("scenario","protected")]
+
+pa.breaks <- c(0,1-pa.areas$protected[1],1-sum(pa.areas$protected[2:3]),1-pa.areas$protected[2],1)
+
+```
+
+```{r identify fractions in top priorities}
+weighted.curves <- read.table(paste0(output_path,"output_LH_weighted_040215.curves.txt"), skip=1, header=F, sep='')
+      colnames(weighted.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
+
+unweighted.curves <- read.table(paste0(output_path,"output_LH_040215.curves.txt"), skip=1, header=F, sep='')
+      colnames(unweighted.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
+
+top.fractions <- data.frame(fractions=pri.breaks,unweighted.avg=NA,unweighted.min=NA,unweighted.n.sp=NA,unweighted.n.sp.good=NA,unweighted.sp.good=NA,unweighted.sp=NA,weighted.avg=NA,weighted.min=NA,weighted.n.sp=NA,weighted.sp=NA,weighted.n.sp.good=NA,weighted.sp.good=NA,weighted.n.sp.poor=NA,weighted.sp.poor=NA)
+
+for(i in seq(pri.breaks)){
+  unweighted <- unweighted.curves[unweighted.curves$Prop_landscape_lost>=pri.breaks[i],][1,]
+    top.fractions$unweighted.avg[i] <- (unweighted[, 4]*100)
+    top.fractions$unweighted.min[i] <- (unweighted[, 3]*100)
+  unweighted <- unweighted[,-c(1:7)]
+    top.fractions$unweighted.n.sp[i] <- length(which(unweighted == 0))
+        top.fractions$unweighted.sp[i] <- paste(strip.names(colnames(unweighted[which(unweighted == 0)])),collapse=", ")
+        top.fractions$unweighted.n.sp.good[i] <- length(which(unweighted >= 0.75))
+        top.fractions$unweighted.sp.good[i] <- paste(strip.names(colnames(unweighted[which(unweighted >= 0.75)])),collapse=", ")
+          
+  weighted <- weighted.curves[weighted.curves$Prop_landscape_lost>=pri.breaks[i],][1,]
+    top.fractions$weighted.avg[i] <- (weighted[, 4]*100)
+    top.fractions$weighted.min[i] <- (weighted[, 3]*100)
+  weighted <- weighted[,-c(1:7)]
+    top.fractions$weighted.n.sp[i] <- length(which(weighted == 0))
+      top.fractions$weighted.sp[i] <- paste(strip.names(colnames(weighted[which(weighted == 0)])),collapse=", ")
+      top.fractions$weighted.n.sp.good[i] <- length(which(weighted >= 0.75))
+      top.fractions$weighted.sp.good[i] <- paste(strip.names(colnames(weighted[which(weighted >= 0.75)])),collapse=", ")
+      top.fractions$weighted.n.sp.poor[i] <- length(which(weighted < 0.25))
+      top.fractions$weighted.sp.poor[i] <- paste(strip.names(colnames(weighted[which(weighted < 0.25)])),collapse=", ")
+}
+
+top.fractions <- top.fractions[-1,]
+
+for(h in 1:nrow(top.fractions)){
+
+    for(j in c("unweighted.sp.good","weighted.sp.good","weighted.sp","weighted.sp.poor")){
+    
+      try({
+        sp <- strsplit(top.fractions[h,j],",")
+          for(i in seq(sp[[1]])){
+            mnes <- ""
+            sdm <- ""
+            taxa <- ""
+            weight <- ""
+            species <- trim(sp[[1]][i])
+            try({
+              if(protected.species$mnes[protected.species$Scientific.Name==species]==TRUE) mnes <- "MNES"
+              if(grepl("SSI",names[grepl(gsub(" ","_",species),gsub(" ","_",names))])==TRUE) sdm <- "SSI"
+              if(grepl("SDM",names[grepl(gsub(" ","_",species),gsub(" ","_",names))])==TRUE) sdm <- "SDM"
+              taxa <- protected.species$Taxa[protected.species$Scientific.Name==species]
+                taxa <- gsub("\\b(\\w)","\\U\\1",gsub("s","",taxa), perl=TRUE)
+              weight <- protected.species$weight[protected.species$Scientific.Name==species]
+              sp[[1]][i] <- paste0(species," (",gsub("^,|$,","",gsub("^,|$,","",(paste(mnes,sdm,taxa,weight,sep=",")))),")")
+              })
+          }
+        top.fractions[h,j] <- paste(sp[[1]],collapse=", ")
+      })
+    }
+    
+  }
+
+write.csv(top.fractions,paste0(output_path,"summary of top priorities.csv"),row.names=F)
+
+```
+
+```{r identify fractions in protected areas}
+weighted.curves <- read.table(paste0(output_path,"output_LH_weighted_040215.curves.txt"), skip=1, header=F, sep='')
+      colnames(weighted.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
+
+protected.curves <- read.table(paste0(output_path,"output_LH_weighted_PA_050215.curves.txt"), skip=1, header=F, sep='')
+      colnames(protected.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
+
+protected.areas <- raster(paste0(input_path,"masks/ProtectedAreas_v4.tif"))
+top.30 <- weighted.priority
+  top.30[top.30 < 0.7] <-NA
+
+
+protected.sp <- read.table(paste0(output_path,"Protection_of_features.txt"),sep="\t",header=T)
+#   protected.sp <- protected.sp[!duplicated(protected.sp$Scientific.Name),]
+
+protected.fractions <- data.frame(fractions=rev(pa.breaks[2:4]),protection=c("Level1","Level2","Level3"),prop.protected=NA,prop.top30=NA,protected.avg=NA,protected.mnes=NA,protected.min=NA,cum.prop.protected=NA,cum.protected.avg=NA,cum.protected.mnes=NA,cum.protected.min=NA,not.protected=NA,not.protected.sp=NA,not.protected.mnes=NA,protected.75=NA,protected.75.sp=NA,weighted.avg=NA,weighted.min=NA)
+
+for(i in 1:3){
+  protected.fractions$cum.prop.protected <- (1-protected.fractions$fractions)
+    protected.fractions$cum.protected.avg[i] <- mean(protected.sp[,paste0("Level.",i)])
+    protected.fractions$cum.protected.min[i] <- min(protected.sp[,paste0("Level.",i)])
+    protected.fractions$cum.protected.mnes[i] <- mean(protected.sp[protected.sp$mnes==TRUE,paste0("Level.",i)])
+    protected.fractions$not.protected[i] <- length(which(protected.sp[,paste0("Level.",i)] == 0))
+    protected.fractions$not.protected.mnes[i] <- length(which(protected.sp[protected.sp$mnes==TRUE,paste0("Level.",i)] == 0))
+        protected.fractions$not.protected.sp[i] <- paste(protected.sp$Scientific.Name[which(protected.sp[,paste0("Level.",i)] == 0)],collapse=", ")
+        protected.fractions$protected.75[i] <- length(which(protected.sp[,paste0("Level.",i)] >= 0.75))
+        protected.fractions$protected.75.sp[i] <- paste(protected.sp$Scientific.Name[which(protected.sp[,paste0("Level.",i)] >= 0.75)],collapse=", ")
+
+  weighted <- weighted.curves[weighted.curves$Prop_landscape_lost>=rev(pa.breaks)[i+1],][1,]
+    protected.fractions$weighted.avg[i] <- (weighted[, 4])
+    protected.fractions$weighted.min[i] <- (weighted[, 3])
+
+  level <- protected.areas
+    level[level!=(7-i)] <- NA
+  protected.fractions$prop.top30[i] <- length(which(!is.na(top.30[level]))==TRUE)/length(top.30[!is.na(top.30)]==TRUE)
+}
+
+
+
+# for(i in seq(pa.breaks)){
+#   protected <- protected.curves[protected.curves$Prop_landscape_lost>=pa.breaks[i],][1,]
+#     protected.fractions$cum.prop.protected <- (1-protected.fractions$fractions)*100
+#     protected.fractions$cum.protected.avg[i] <- (protected[, 4]*100)
+#     protected.fractions$cum.protected.min[i] <- (protected[, 3]*100)
+#   protected <- protected[,-c(1:7)]
+#     protected.fractions$not.protected[i] <- length(which(protected == 0))
+#         protected.fractions$not.protected.sp[i] <- paste(strip.names(colnames(protected[which(protected == 0)])),collapse=", ")
+#         protected.fractions$protected.75[i] <- length(which(protected >= 0.75))
+#         protected.fractions$protected.75.sp[i] <- paste(strip.names(colnames(protected[which(protected >= 0.75)])),collapse=", ")
+#           
+#   weighted <- weighted.curves[weighted.curves$Prop_landscape_lost>=pa.breaks[i],][1,]
+#     protected.fractions$weighted.avg[i] <- (weighted[, 4]*100)
+#     protected.fractions$weighted.min[i] <- (weighted[, 3]*100)
+# }
+
+  protected.fractions <- protected.fractions[order(protected.fractions$protection),]
+   protected.fractions[1,c("prop.protected","protected.avg","protected.mnes","protected.min")] <- protected.fractions[1,c("cum.prop.protected","cum.protected.avg","cum.protected.mnes","cum.protected.min")] 
+   protected.fractions[2,c("prop.protected","protected.avg","protected.mnes","protected.min")] <- protected.fractions[2,c("cum.prop.protected","cum.protected.avg","cum.protected.mnes","cum.protected.min")] - protected.fractions[1,c("cum.prop.protected","cum.protected.avg","cum.protected.mnes","cum.protected.min")]
+  protected.fractions[3,c("prop.protected","protected.avg","protected.mnes","protected.min")] <- protected.fractions[3,c("cum.prop.protected","cum.protected.avg","cum.protected.mnes","cum.protected.min")] - protected.fractions[2,c("cum.prop.protected","cum.protected.avg","cum.protected.mnes","cum.protected.min")]
+
+
+# at risk species
+  for(h in 1:nrow(protected.fractions)){
+
+    for(j in c("not.protected.sp","protected.75.sp")){
+    
+      try({
+        sp <- strsplit(protected.fractions[h,j],",")
+          for(i in seq(sp[[1]])){
+            mnes <- ""
+            sdm <- ""
+            taxa <- ""
+            species <- trim(sp[[1]][i])
+            try({
+              if(protected.species$mnes[protected.species$Scientific.Name==species]==TRUE) mnes <- "MNES"
+              if(grepl("SSI",names[grepl(gsub(" ","_",species),gsub(" ","_",names))])==TRUE) sdm <- "SSI"
+              if(grepl("SDM",names[grepl(gsub(" ","_",species),gsub(" ","_",names))])==TRUE) sdm <- "SDM"
+              taxa <- protected.species$Taxa[protected.species$Scientific.Name==species]
+                taxa <- gsub("\\b(\\w)","\\U\\1",gsub("s","",taxa), perl=TRUE)
+              sp[[1]][i] <- paste0(species," (",gsub("^,|$,","",gsub("^,|$,","",(paste(mnes,sdm,taxa,sep=",")))),")")
+              })
+          }
+        protected.fractions[h,j] <- paste(sp[[1]],collapse=", ")
+      })
+    }
+    
+  }
+
+  write.csv(protected.fractions, paste0(output_path,"LHSA_protected.table.csv"),row.names=F)
+
+```
+
+
+
+```{r plot distribution size vs % in top priority}
+n.cells <- length(LH.clipping.mask[!is.na(LH.clipping.mask)])
+
+weighted.curves <- read.table(paste0(output_path,"output_LH_weighted_040215.curves.txt"), skip=1, header=F, sep='')
+      colnames(weighted.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', names)
+
+distribution.size <- read.csv(paste0(output_path,"output_LH_weighted_040215.features_info.csv"))
+
+distribution.size$relative.distribution <- distribution.size$distribution.sum
+distribution.size$scalar <- 1
+  distribution.size$scalar[distribution.size$MapFileName %in% sdm.species] <- 1000
+  distribution.size$scalar[distribution.size$MapFileName == "DotE/ghff_foraging_LH.tif"] <- 4
+  distribution.size$scalar[distribution.size$MapFileName == "DotE/koala_rawhabval6_LH.tif"] <- 2200.782
+  distribution.size$scalar[grepl("DotE/Regent_Honeyeater_LH.tif|DotE/Swift_Parrot_LH.tif",distribution.size$MapFileName)] <- 1000
+
+  distribution.size$relative.distribution <- distribution.size$relative.distribution / distribution.size$scalar
+  distribution.size$relative.distribution <- distribution.size$relative.distribution/n.cells
+
+  distribution.size$top.30 <- t(weighted.curves[weighted.curves$Prop_landscape_lost>=(1-0.3),][1,8:ncol(weighted.curves)])
+
+svg(paste0(output_path,"distribution.size_top30priority.svg"),height=6,width=6, bg="transparent",pointsize = 12)
+# png(paste0(output_path,"distribution.size_top30priority.png"),height=15,width=15,units="cm",res=300, bg="transparent",pointsize = 12)
+  par(mfrow=c(1,1),xpd=NA,las=1)
+
+  plot(distribution.size$relative.distribution,distribution.size$top.30,ylim=c(0,1),xlim=c(0,0.7),xlab="Relative size of distribution",ylab="Proportion of distribution in top priorities",bty="l")
+# points(distribution.size$relative.distribution[match(species.interest,strip.names(distribution.size$MapFileName))][i],distribution.size$top.30[match(species.interest,strip.names(distribution.size$MapFileName))][i],col="red",pch=16)
+#    text(distribution.size$relative.distribution[match(species.interest,strip.names(distribution.size$MapFileName))][i],distribution.size$top.30[match(species.interest,strip.names(distribution.size$MapFileName))][i],labels=strip.names(distribution.size$MapFileName[match(species.interest,strip.names(distribution.size$MapFileName))][i]),cex=0.7,offset=10)
+
+dev.off()
+
+# identify the features that have all of their distribution in the top priority areas
+full.distribution.top.30 <- cbind(protected.species[protected.species$Scientific.Name %in% strip.names(distribution.size$MapFileName[distribution.size$top.30==1]),c("Scientific.Name","Common.Name","mnes","NSW.status","Comm.status")])
+
+write.csv(full.distribution.top.30,paste0(output_path,"features with full distribution in top 30.csv"),row.names=F)
+
+```
+
+```{r plot protected areas}
+protected.areas <- raster(paste0(input_path,"masks/ProtectedAreas_v4.tif")) 
+  protected.areas[protected.areas==3] <- NA
+
+png(paste0(output_path,"Protected_Areas.png"),height=9,width=15,units="cm",res=300, bg="transparent",pointsize=10)
+     par(mar=c(0,0,0,0), oma=c(0,0,0,0),xpd=NA)  
+  
+  plot(LH.lakes.mask,col=map.background,legend=F,box=F,axes=F)
+    plot(protected.areas,col=pa.colours$colour[1:3],add=T,legend=F)
+    plot(LH.shp, add=T, lwd=0.75)
+  legend("bottomright",xjust=1,pa.colours$label[1:3],col="black",fill=rev(pa.colours$colour[1:3]),bty="n",title="Protected Areas",cex=1)
+
+dev.off()
+
+```
+
+```{r plot unweighted vs weighted solution}
+unweighted.priority <- raster(paste0(output_path,"output_LH_040215.rank.compressed.tif"),crs=GDA94.56)
+weighted.priority <- raster(paste0(output_path,"output_LH_weighted_040215.rank.compressed.tif"),crs=GDA94.56)
+
+png(paste0(output_path,"unweighted & weighted priorities.png"),height=17.5,width=15,units="cm",res=300, bg="transparent",pointsize = 10)
+    par(mfrow=c(2,1),mar=c(0,0.2,2,0), oma=c(0,0,0,0),xpd=NA)
+  
+  plot(LH.lakes.mask,col=map.background,legend=F,box=F,axes=F,zlim=c(1,6))
+    plot(unweighted.priority,col=pri.col,breaks=pri.breaks,add=T,legend=F)
+    plot(LH.shp, add=T, lwd=0.75)
+    mtext("a) Unweighted",side=3,line=0,cex=1,adj=0)
+  legend("bottomright",inset=c(0,-1),xjust=1,pri.labels,col="black",fill=rev(pri.col),bty="n",title="Conservation priority",cex=1,xpd=NA)
+  
+  plot(LH.lakes.mask,col=map.background,legend=F,box=F,axes=F,zlim=c(1,6))
+      plot(weighted.priority,col=pri.col,breaks=pri.breaks,add=T,legend=F)
+      plot(LH.shp, add=T, lwd=0.75)
+      mtext("b) Weighted",side=3,line=0,cex=1,adj=0)
+    #   scalebar(10000,type="line",divs=3,below="",cex=0.6,label=c("","10km",""))
+
+  
+    dev.off()
+
+# identify differences in priorities (comparing top 30% priorities)
+  unweighted.top.30 <- unweighted.priority
+    unweighted.top.30[unweighted.top.30<0.7] <- 0
+    unweighted.top.30[unweighted.top.30!=0] <- 2
+
+  weighted.top.30 <- weighted.priority
+    weighted.top.30[weighted.top.30<0.7] <- 0
+    weighted.top.30[weighted.top.30!=0] <- 1
+
+priority.diff <- unweighted.top.30-weighted.top.30
+  priority.diff[priority.diff==0] <- NA
+
+writeRaster(priority.diff,paste0(output_path,"differences_weighted_unweighted_priorities.tif"),overwrite=T)
+
+difference.points <- data.frame(x=c(375064.8, 393323.1),y=c(6390743, 6387247))
+
+pb <- txtProgressBar(min = 0, max = length(names), initial = 0, style = 3)
+
+for(i in seq(names)){
+  r <- raster(paste0(input_path,names[i]))
+  r <- r/ distribution.size$scalar[distribution.size$MapFileName==gsub(" ","_",names[i])]
+  distribution.size$total[i] <- cellStats(r,sum)
+  
+  distribution.size$butterick[i] <- cellStats(crop(r,extent(difference.points$x[1]-6000,difference.points$x[1]+6000,difference.points$y[1]-6000,difference.points$y[1]+6000)),sum)/distribution.size$total[i]
+  distribution.size$wallaroo[i] <- cellStats(crop(r,extent(difference.points$x[2]-6000,difference.points$x[2]+6000,difference.points$y[2]-6000,difference.points$y[2]+6000)),sum)/distribution.size$total[i]
+  
+  setTxtProgressBar(pb, i)
+  gc()
+}
+
+distribution.size$weight <- as.vector(read.table(paste0(input_path,'LH.extant.zonation.weighted.spp'), header=F, sep='\t')[,1])
+
+write.csv(distribution.size,paste0(output_path,"distribution.size.csv"),row.names=F)
+
+
+  #compare full ranks
+col.diff <- colorRampPalette(c('blue','white','red'), interpolate='linear')(300)
+diff.labels <- c('Lower', 'Higher')
+
+pri.diff.full <- weighted.priority-unweighted.priority
+
+tiff(paste0(output_path,"Differences between unweighted & weighted priorities.tif"),height=8,width=15,units="cm",res=300, bg="transparent",pointsize = 10, compression='lzw')
+    par(mfrow=c(1,1),mar=c(0,0.1,1,0), oma=c(0,0,0,0),xpd=NA)
+  
+  plot(LH.lakes.mask,col=map.background,legend=F,box=F,axes=F,zlim=c(1,6))
+    plot(pri.diff.full, col=col.diff, add=T, legend=F)
+    plot(LH.shp, add=T, lwd=0.75)
+  image.plot(add = T,legend.only=T,zlim=c(0,1),axis.args=list(at=c(0,1),labels=diff.labels, cex.axis=0.8),legend.args=list(text='Change in priority', side=3, cex=0.8, adj=0, line=0.5), horizontal=F, smallplot=c(.75,.77,.25,.45), col=col.diff)
+dev.off()
+
+
+
+```
+
+```{r plot weighted priority by LGAs}
+
+lga.areas <- data.frame(lga=LH.shp$LGAName,total.area=NA,veg.area=NA,top.priorities=NA)
+
+
+png(paste0(output_path,"weighted priorities by LGA.png"),height=17.5,width=15,units="cm",res=300, bg="transparent",pointsize = 10)
+  par(mfrow=c(3,2),mar=c(0,0,3,0), oma=c(0,1,0,0),xpd=NA)
+  
+  for(i in seq(LH.shp$LGAName)){
+    lga <- LH.shp$LGAName[i]
+    lga.mask <- mask(crop(LH.mask,LH.shp[grepl(lga,LH.shp$LGAName),]),LH.shp[grepl(lga,LH.shp$LGAName),])
+      lga.areas$total.area[i] <- length(lga.mask[!is.na(lga.mask)])
+    lga.mask <- lga.mask*LH.urban.clipping.mask
+    
+    lga.veg.mask <- mask(crop(LH.clipping.mask,LH.shp[grepl(lga,LH.shp$LGAName),]),LH.shp[grepl(lga,LH.shp$LGAName),])
+      lga.areas$veg.area[i] <- length(lga.veg.mask[!is.na(lga.veg.mask)])
+    
+    lga.priority <- mask(crop(weighted.priority,LH.shp[grepl(lga,LH.shp$LGAName),]),LH.shp[grepl(lga,LH.shp$LGAName),])
+      lga.areas$top.priorities[i] <- length(lga.priority[lga.priority>0.7])
+    
+      plot(lga.mask,col=map.background,legend=F,box=F,axes=F)
+        plot(lga.priority,col=pri.col,breaks=pri.breaks,add=T,legend=F)
+        plot(LH.shp[grepl(lga,LH.shp$LGAName),], add=T, lwd=0.75)
+        mtext(lga,side=3,line=0,cex=0.8,adj=0)
+        scalebar(5000,type="line",divs=3,below="",label="")
+    }
+
+  plot.new()
+  legend("center",inset=c(0,0),xjust=1,pri.labels,col="black",fill=rev(pri.col),bty="n",title="Conservation priority",cex=1.5,xpd=NA)
+dev.off()
+
+lga.areas$relative.area <- lga.areas$total.area / length(LH.mask[!is.na(LH.mask)])
+lga.areas$relative.veg <- lga.areas$veg.area / length(LH.clipping.mask[!is.na(LH.clipping.mask)])
+lga.areas$relative.priorities <- lga.areas$top.priorities / length(weighted.priority[weighted.priority>0.7])
+lga.areas$high.priority.veg.lga <- lga.areas$top.priorities / lga.areas$veg.area
+lga.areas$high.priority.veg.lhsa <- lga.areas$top.priorities / length(LH.clipping.mask[!is.na(LH.clipping.mask)])
+lga.areas$ratio.area <- lga.areas$relative.priorities / lga.areas$relative.area
+lga.areas$ratio.veg <- lga.areas$relative.priorities / lga.areas$relative.veg
+lga.areas$cleared.veg <- 1-(lga.areas$veg.area/lga.areas$total.area)
+
+write.csv(lga.areas,paste0(output_path,"LGA_priorities.csv"),row.names=F)
+```
+
+
+```{r priority insets}
+interest.points <- data.frame(x=c(299701.0, 350310.3, 359525.9, 383999.7, 414135.2,360248.1),y=c(6347622, 6345622, 6368104, 6365938, 6376427,6385533))
+
+png(paste0(output_path,"priority_insets.png"),height=15,width=21,units="cm",res=300, bg="transparent",pointsize=10)
+# lay.out <- layout(matrix(c(1,1,1,1,1,2,3,4,5,6),2,5,byrow=T),heights = c(0.7,0.3))
+# lay.out <- layout(matrix(c(1,1,1,1,2,3,4,5),4,2,byrow=F),widths = c(0.7,0.3))
+lay.out <- layout(matrix(c(1,1,1,1,2,3,4,5),2,4,byrow=T),heights = c(0.7,0.3))
+
+par(mar=c(0,0,0,0), oma=c(0,0.5,0,0.5))
+    
+    image(LH.lakes.mask,col=map.background,axes=F,ann=F)
+    image(weighted.priority,add=T,col=pri.col,breaks=pri.breaks,ann=F)
+      plot(LH.shp, add=T, lwd=0.5)
+#       mtext("A",side=3,line=-1.5,adj=0, font=2)
+      scalebar(10000,xy=c(300043.4,6365104),type="line",label = "10 km")
+
+      text(x=interest.points$x[1],y=interest.points$y[1],"1",font = 2,cex=1.5)
+      text(x=interest.points$x[2],y=interest.points$y[2],"2",font = 2,cex=1.5)
+#       text(x=interest.points$x[3],y=interest.points$y[3],"3",font = 2,cex=1.5)
+#       text(x=interest.points$x[4],y=interest.points$y[4],"4",font = 2,cex=1.5)
+      text(x=interest.points$x[5],y=interest.points$y[5],"4",font = 2,cex=1.5)
+      text(x=interest.points$x[6],y=interest.points$y[6],"3",font = 2,cex=1.5)
+
+      legend('right', inset=c(0,-0.15), c(pri.labels), col="black",fill=rev(pri.col), bty="n", title="Conservation priority", cex=1.5, xpd=NA, horiz=F,title.adj = 0)
+    
+  par(mar=c(1,1,2,1)) 
+  image(LH.lakes.mask,col=map.background,ann=F,axes=F,xlim=c(interest.points$x[1]-6000,interest.points$x[1]+6000),ylim=c(interest.points$y[1]-6000,interest.points$y[1]+6000),asp=1)
+    image(weighted.priority,col=pri.col,breaks=pri.breaks,ann=F,add=T,asp=1)
+    plot(LH.shp, add=T, lwd=0.5)
+    box()
+    mtext("1",side=3,line=-1.5,adj=0.05)
+
+  image(LH.lakes.mask,col=map.background,ann=F,axes=F,xlim=c(interest.points$x[2]-6000,interest.points$x[2]+6000),ylim=c(interest.points$y[2]-6000,interest.points$y[2]+6000),asp=1)
+    image(weighted.priority,col=pri.col,breaks=pri.breaks,ann=F,add=T,asp=1)
+    plot(LH.shp, add=T, lwd=0.5)
+    box()
+    mtext("2",side=3,line=-1.5,adj=0.05)
+
+  image(LH.lakes.mask,col=map.background,ann=F,axes=F,xlim=c(interest.points$x[6]-6000,interest.points$x[6]+6000),ylim=c(interest.points$y[6]-6000,interest.points$y[6]+6000),asp=1)
+    image(weighted.priority,col=pri.col,breaks=pri.breaks,ann=F,add=T,asp=1)
+    plot(LH.shp, add=T, lwd=0.5)
+    box()
+    mtext("3",side=3,line=-1.5,adj=0.05)
+
+  image(LH.lakes.mask,col=map.background,ann=F,axes=F,xlim=c(interest.points$x[5]-6000,interest.points$x[5]+6000),ylim=c(interest.points$y[5]-6000,interest.points$y[5]+6000),asp=1)
+    image(weighted.priority,col=pri.col,breaks=pri.breaks,ann=F,add=T,asp=1)
+    plot(LH.shp, add=T, lwd=0.5)
+    box()
+    mtext("4",side=3,line=-1.5,adj=0.05)
+  scalebar(5000,xy=c(interest.points$x[5]-6000,interest.points$y[5]-5500),type="line",label = "5 km")
+
+dev.off()
+
+
+```
+
+```{r calculate protected area/priority overlaps}
+protected.areas <- raster(paste0(input_path,"masks/ProtectedAreas_v4.tif"))
+level.1 <- protected.areas
+  level.1[level.1!=6] <-NA
+
+level.2 <- protected.areas
+  level.2[level.2!=5] <-NA
+
+level.3 <- protected.areas
+  level.3[level.3!=4] <-NA
+
+
+top.30 <- weighted.priority
+  top.30[top.30 < 0.7] <-NA
+
+test <- top.30*level.3
+length(test[!is.na(test)])/length(top.30[[!is.na(top.30)]])
+
+```
+
+
+```{r plot protected priorities}
+protected.areas <- raster(paste0(input_path,"masks/ProtectedAreas_v4.tif")) 
+protected.areas.plot <- protected.areas
+  protected.areas.plot[protected.areas.plot==3] <- 0
+  protected.areas.plot[protected.areas.plot!=0] <- 1
+
+top.30 <- weighted.priority
+  top.30[top.30 < 0.7] <-NA
+  top.30[!is.na(top.30)] <- 1
+
+protected.priorities <- mask(protected.areas.plot + weighted.priority,top.30)
+protected.priorities[is.na(protected.priorities)] <- 0
+protected.priorities <- mask(protected.priorities+ protected.areas.plot*4,LH.lakes.mask)
+
+
+ png(paste0(output_path,"Protected_Priorities.png"),height=12,width=21,units="cm",res=300, bg="transparent",pointsize=10)
+     par(mar=c(0,0,0,0), oma=c(0,0,0,0),xpd=NA)  
+# leg.labels <- c("top 5%","top 10%","top 15%","top 30%","Protected priorities", "Protected areas")  
+
+  plot(LH.lakes.mask,col=map.background,legend=F,box=F,axes=F)
+#     plot(protected.areas,col=pa.colours$colour[1],add=T,legend=F,zlim=c(4,6))
+    plot(protected.priorities,add=T,col=c(NA,pri.col[2:5],dev.col,pri.col[1]),breaks=c(0,0.7,0.85,0.9,0.95,1,4,6),legend=F)
+     plot(LH.shp, add=T, lwd=0.5)
+
+legend("bottomright",inset=c(0,0),xjust=1,c(pri.labels[1:4],"Protected priorities", "Protected areas"),col="black",fill=c(rev(pri.col), dev.col),bty="n",title=paste0("Protection of","\n","conservation priorities"),cex=1,xpd=NA)
+    dev.off()
+
+```
+
+
+```{r calculate distribution sizes within insets}
+
+pb <- txtProgressBar(min = 0, max = length(names), initial = 0, style = 3)
+
+for(i in seq(names)){
+# for(i in 215:length(species)){
+  r <- raster(paste0(input_path,names[i]))
+  r <- r/ distribution.size$scalar[distribution.size$MapFileName==gsub(" ","_",names[i])]
+  distribution.size$total[i] <- cellStats(r,sum)
+  
+  distribution.size$box1[i] <- cellStats(crop(r,extent(interest.points$x[1]-6000,interest.points$x[1]+6000,interest.points$y[1]-6000,interest.points$y[1]+6000)),sum)/distribution.size$total[i]
+  distribution.size$box2[i] <- cellStats(crop(r,extent(interest.points$x[2]-6000,interest.points$x[2]+6000,interest.points$y[2]-6000,interest.points$y[2]+6000)),sum)/distribution.size$total[i]
+  distribution.size$box3[i] <- cellStats(crop(r,extent(interest.points$x[6]-6000,interest.points$x[6]+6000,interest.points$y[6]-6000,interest.points$y[6]+6000)),sum)/distribution.size$total[i]
+  distribution.size$box4[i] <- cellStats(crop(r,extent(interest.points$x[5]-6000,interest.points$x[5]+6000,interest.points$y[5]-6000,interest.points$y[5]+6000)),sum)/distribution.size$total[i]
+  
+  setTxtProgressBar(pb, i)
+  gc()
+}
+
+write.csv(distribution.size,paste0(output_path,"distribution.size.csv"),row.names=F)
+
+
+```
+
+```{r identify species within inset boxes}
+
+distribution.size <- read.csv(paste0(output_path,"distribution.size.csv"))
+
+boxplot(distribution.size$box1,distribution.size$box2,distribution.size$box3,distribution.size$box1,horizontal = T,names = c("Box 1","Box 2","Box 3","Box 4"),las=1)
+abline(v=0.4,lty=3,col="grey")
+
+threshold <- 0.10
+
+important.species <- list(distribution_size_threshold=threshold,box1=cbind(protected.species[protected.species$Scientific.Name %in% strip.names(distribution.size$MapFileName[distribution.size$box1>threshold]),c("Scientific.Name","Common.Name","mnes","NSW.status","Comm.status")],distribution.size=distribution.size$relative.distribution[distribution.size$box1>threshold],prop.dist=distribution.size$box1[distribution.size$box1>threshold]),
+    box2=cbind(protected.species[protected.species$Scientific.Name %in% strip.names(distribution.size$MapFileName[distribution.size$box2>threshold]),c("Scientific.Name","Common.Name","mnes","NSW.status","Comm.status")],distribution.size=distribution.size$relative.distribution[distribution.size$box2>threshold],prop.dist=distribution.size$box2[distribution.size$box2>threshold]),
+    box3=cbind(protected.species[protected.species$Scientific.Name %in% strip.names(distribution.size$MapFileName[distribution.size$box3>threshold]),c("Scientific.Name","Common.Name","mnes","NSW.status","Comm.status")],distribution.size=distribution.size$relative.distribution[distribution.size$box3>threshold],prop.dist=distribution.size$box3[distribution.size$box3>threshold]),
+    box4=cbind(protected.species[protected.species$Scientific.Name %in% strip.names(distribution.size$MapFileName[distribution.size$box4>threshold & distribution.size$MapFileName!="extant/Ninox_connivens_SSI.LH.tif"]),c("Scientific.Name","Common.Name","mnes","NSW.status","Comm.status")],distribution.size=distribution.size$relative.distribution[distribution.size$box4>threshold & distribution.size$MapFileName!="extant/Ninox_connivens_SSI.LH.tif"],prop.dist=distribution.size$box4[distribution.size$box4>threshold & distribution.size$MapFileName!="extant/Ninox_connivens_SSI.LH.tif"]))
+
+for(i in 2:5){
+write.csv(important.species[i],paste0(output_path,"Species_in_Box",i-1,".csv"),row.names=F)
+}
+
+```
+
+
+```{r features in prioritisation}
+zonation.features <- data.frame(Taxa=NA,Scientific.Name=strip.names(names),Common.Name=NA,MNES=NA,Commonwealth.Status=NA,NSW.Status=NA,No.Records=NA,Data.type=NA,Weight=NA)
+
+zonation.features$Scientific.Name <- as.character(zonation.features$Scientific.Name)
+
+zonation.features$Scientific.Name[grepl("Regent Honeyeater",zonation.features$Scientific.Name)] <- "Anthochaera phrygia"
+zonation.features$Scientific.Name[grepl("Swift Parrot",zonation.features$Scientific.Name)] <- "Lathamus discolor"
+
+for(i in seq(zonation.features$Scientific.Name)){
+  try({
+    species <- zonation.features$Scientific.Name[i]
+  zonation.features$Taxa[i] <- as.character(protected.species$Taxa[grepl(species,protected.species$Scientific.Name)])
+  zonation.features$Common.Name[i] <- as.character(protected.species$Common.Name[grepl(species,protected.species$Scientific.Name)])
+  zonation.features$MNES[i] <- protected.species$mnes[grepl(species,protected.species$Scientific.Name)]
+  zonation.features$Commonwealth.Status[i] <- as.character(protected.species$Comm.status[grepl(species,protected.species$Scientific.Name)])
+  zonation.features$NSW.Status[i] <- as.character(protected.species$NSW.status[grepl(species,protected.species$Scientific.Name)])
+  zonation.features$No.Records[i] <- paste0(protected.species$lower.hunter[grepl(species,protected.species$Scientific.Name)]," (",protected.species$greater.hunter[grepl(species,protected.species$Scientific.Name)],")")
+  zonation.features$Weight[i] <- protected.species$weight[grepl(species,protected.species$Scientific.Name)]
+  },silent=T)
+}
+
+zonation.features$Data.type[grepl("SDM|Regent Honeyeater|Swift Parrot",names)] <- "SDM"
+zonation.features$Data.type[grepl("SSI",names)] <- "SSI"
+zonation.features$Data.type[grepl("Nominated",names)] <- "Polygon"
+zonation.features$Data.type[is.na(zonation.features$Data.type)] <- "Other"
+zonation.features$No.Records[grepl("Regent Honeyeater|Swift Parrot",zonation.features$Common.Name)] <- NA
+
+
+missing.records <- zonation.features$Scientific.Name[is.na(zonation.features$No.Records)]
+
+tec.data$NSW.Status <- NA
+tec.data$Commonwealth.Status <- NA
+tec.data$MNES <- NA
+
+for(i in seq(tec.data$TECName)){
+  tec.data$Threat.Status[i] <- strsplit(as.character(tec.data$TECName[i]),":")[[1]][1]
+  if(grepl("EPBC",tec.data$Threat.Status[i])==TRUE) {
+    tec.data$Commonwealth.Status[i] <- strsplit(as.character(tec.data$Threat.Status[i]),",")[[1]][2]
+    tec.data$MNES[i] <- "TRUE"
+    } else {
+    tec.data$NSW.Status[i] <- strsplit(as.character(tec.data$Threat.Status[i]),",")[[1]][2] 
+    }
+}
+
+
+for(i in seq(zonation.features$Scientific.Name)){
+  if(is.na(zonation.features$NSW.Status[i])==TRUE){
+    try({
+      species <- gsub(" ","_",zonation.features$Scientific.Name[i])
+      zonation.features$NSW.Status[i] <- as.character(tec.data$NSW.Status[grepl(species,tec.data$TEC_Amy)])
+      zonation.features$Commonwealth.Status[i] <- as.character(tec.data$Commonwealth.Status[grepl(species,tec.data$TEC_Amy)])
+      zonation.features$MNES[i] <- as.character(tec.data$MNES[grepl(species,tec.data$TEC_Amy)])
+    zonation.features$No.Records[i] <- paste0(tec.data$LH.points[grepl(species,tec.data$TEC_Amy)]," (",tec.data$points[grepl(species,tec.data$TEC_Amy)],")")
+    zonation.features$Weight[i] <- tec.data$weight[grepl(species,tec.data$TEC_Amy)]
+      })  
+  }
+
+}
+
+write.csv(zonation.features,paste(output_path,"Summary of zonation input features.csv"),row.names=F)
+
+table(zonation.features$Data.type)
+```
+
+```{r species richness & spatial uncertainty}
+
+# gh.sdms <- gsub("extant\\/","",gsub(".LH","_GH",sdm.species))
+# 
+# gh.sdms.stack <- stack(paste0("//654cw-20990/Amy/GIS_data/Hunter/zonation/greater hunter/extant/",intersect(gh.sdms,dir("//654cw-20990/Amy/GIS_data/Hunter/zonation/greater hunter/extant",pattern="SDM_GH.tif"))))
+# 
+# species.richness <- sum(gh.sdms.stack)
+#   writeRaster(species.richness,paste0(output_path,"LH.species.richness.tif"))
+
+species.richness <- raster(paste0(output_path,"LH.species.richness.tif"))
+mean.uncertainty <- raster(paste0("//654cw-20990/Amy/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/LH.mean.uncertainty_2015-02-08.tif"))
+  mean.uncertainty <- mask(crop(mask(mean.uncertainty,GH.clipping.mask),GH.shp),GH.shp)
+mean.range.cv <- cellStats(mean.uncertainty,range)
+
+LH.mean.uncertainty <- mask(mean.uncertainty,LH.shp)
+
+png(paste0(output_path,"richness & uncertainty.png"),width=17,height=10,units="cm",res=300,pointsize=12,bg="transparent")
+  par(mfrow=c(1,2),mar=c(3,0,0,0),oma=c(2,0,1,0),xpd=NA)
+  plot(GH.shp,col="lightgrey",axes=F)  
+    plot(species.richness,axes=F,box=F,legend=F,col=brewer.pal(9,"YlGnBu"),add=T)
+    plot(LH.shp, add=T)
+    plot(GH.shp, add=T)
+mtext("A)",side=3,line=0,cex=1,adj=0.05,font=2)
+image.plot(species.richness,legend.only=TRUE,zlim=c(0,30),nlevel=100, col=brewer.pal(9,"YlGnBu"),axis.args=list(at=c(0,30), labels=c("Low","High"), cex.axis=0.7,adj=0.5),legend.args=list(text='Relative richness', side=3, font=2, line=0.75, cex=0.7),legend.width=0.5,legend.shrink=0.5,horizontal = T,smallplot=c(0.25,0.75,0.05,0.075))
+
+plot(GH.shp,col="lightgrey",axes=F)
+plot(mean.uncertainty,axes=F,add=T,legend=F,col=brewer.pal(9,"OrRd"))
+    image.plot(legend.only=TRUE,zlim=mean.range.cv, nlevel=100, col=brewer.pal(9,"OrRd"),axis.args=list(at=mean.range.cv, labels=c(paste0("Low","\n","(CV=",round(mean.range.cv[1],2),")"),paste0("High","\n","(CV=",round(mean.range.cv[2],2),")")), cex.axis=0.7,adj=0.5),legend.args=list(text='Predictive uncertainty', side=3, font=2, line=0.75, cex=0.7),legend.width=0.5,legend.shrink=0.5,horizontal = T,smallplot=c(0.25,0.75,0.05,0.075))
+    plot(LH.shp, add=T)
+    plot(GH.shp, add=T)
+mtext("B)",side=3,line=0,cex=1,adj=0.05,font=2)
+
+dev.off()
+
+```
+
+
+
+```{r plot development conflicts}
+scenario.files <- dir(paste0(input_path,"masks/"),pattern=".tif$",full.names=T)
+  unclipped.scenarios <- scenario.files[grepl("unclipped|small.patches",scenario.files)]
+
+
+for (i in seq(unclipped.scenarios)){
+  s <- raster(unclipped.scenarios[i])
+    s[s<cellStats(s,max)] <- 1
+  conflict <- s
+    conflict[conflict==cellStats(conflict,max)] <- NA
+    conflict[!is.na(conflict)] <- 1
+    conflict<- conflict*weighted.priority
+  
+    png(paste0(output_path,names(s),"_conflicts.png"),height=12,width=21,units="cm",res=300, bg="transparent",pointsize=10)
+    par(mar=c(0,0,0,0), oma=c(0,0,0,0),xpd=NA)    
+    plot(s,col=c(dev.col,map.background),legend=F,box=F,axes=F)
+      plot(conflict,add=T,col=pri.col,breaks=pri.breaks,legend=F)
+      plot(LH.shp, add=T, lwd=0.5)
+    legend('bottomright',c(pri.labels,"Development"), col="black",fill=c(rev(pri.col),dev.col), bty="n", title=paste0("Conservation priority","\n"," in development zones"), cex=1, xpd=NA)
+  dev.off()
+}
+
+dev.scenarios <- d(label=c("1.Urban development", "2. Hunter Expressway","3. Important Agricultural Lands", "4. Cumulative Development", "5. Mining"), mask=c("urban_all_no_URA3","Express_Highway_noBuffer","Important_Agricultural_Lands","All_UIA_no_URA3","Mine_Leases&Appl"))
+
+png(paste0(output_path,"development_conflicts.png"),height=10,width=21,units="cm",res=300, bg="transparent",pointsize=10)
+par(mfrow=c(2,3),mar=c(0,0,0,0), oma=c(0,0,0,0)) 
+
+for(i in seq(dev.scenarios$label)){
+  s <- raster(unclipped.scenarios[grepl(dev.scenarios$mask[i],unclipped.scenarios)])
+    s[s<cellStats(s,max)] <- 1
+  conflict <- s
+    conflict[conflict==cellStats(conflict,max)] <- NA
+    conflict[!is.na(conflict)] <- 1
+    conflict<- conflict*weighted.priority
+  
+   plot(s,col=c(dev.col,map.background),legend=F,box=F,axes=F)
+      plot(conflict,add=T,col=pri.col,breaks=pri.breaks,legend=F)
+      plot(LH.shp, add=T, lwd=0.5)
+  mtext(dev.scenarios$label[i],side=3,line=-1.25,cex=1,adj=0)
+  }
+
+  plot.new()
+  legend('center',c(pri.labels,"Development"), col="black",fill=c(rev(pri.col),dev.col), bty="n", title=paste0("Conservation priority","\n"," in development zones"), cex=1.2, xpd=NA)
+
+dev.off()
+
+png(paste0(output_path,"development_footprints.png"),height=10,width=21,units="cm",res=300, bg="transparent",pointsize=10)
+par(mfrow=c(2,3),mar=c(0,0,0,0), oma=c(0,0,0,0)) 
+
+for(i in seq(dev.scenarios$label)){
+  s <- raster(unclipped.scenarios[grepl(dev.scenarios$mask[i],unclipped.scenarios)])
+  
+  plot(s,col=c(dev.col,map.background),legend=F,box=F,axes=F)
+    plot(LH.shp, add=T, lwd=0.5)
+  mtext(dev.scenarios$label[i],side=3,line=-1.25,cex=1,adj=0)
+  }
+
+#   plot.new()
+#   legend('center',c(pri.labels,"Development"), col="black",fill=c(rev(pri.col),dev.col), bty="n", title=paste0("Conservation priority","\n"," in development zones"), cex=1.2, xpd=NA)
+
+dev.off()
+
+urban.dev <- d(label=c("Zoned","Zoned + URA1&2","Zoned + URA1&2 + Planned development"),value=c(1,2,3),col=as.character(brewer.pal(12,"Paired")[c(2,4,10)]))
+
+png(paste0(output_path,"urban_development_footprint.png"),height=12,width=21,units="cm",res=300, bg="transparent",pointsize=10)
+    par(mar=c(0,0,0,0), oma=c(0,0,0,0),xpd=NA)    
+
+  s <- raster(unclipped.scenarios[grepl(dev.scenarios$mask[1],unclipped.scenarios)])
+  
+  plot(s,col=c(as.character(urban.dev$col),map.background),legend=F,box=F,axes=F)
+    plot(LH.shp, add=T, lwd=0.5)
+  mtext(dev.scenarios$label[1],side=3,line=-1.25,cex=1,adj=0)
+
+   legend('bottomright',legend=urban.dev$label, xjust=1,inset=c(-0.095,0),col="black",fill=as.character(urban.dev$col), bty="n", , cex=1.2,title.adj=0,xpd=NA)
+
+dev.off()
+
+
+```
+
+The plot versions below are used in the report to remove the parcels of land requested by DPI. These parcels have not been removed from the mask used to generate the reported numbers.
+
+```{r alternate urban plots for report}
+
+scenario.files <- dir(paste0(input_path,"masks/"),pattern=".tif$",full.names=T)
+  unclipped.scenarios <- scenario.files[grepl("unclipped|small.patches",scenario.files)]
+
+alternate.urban <- unclipped.scenarios[grepl("urban_all_no_URA3_unclipped_mask_v2.tif",unclipped.scenarios)]
+
+  s <- raster(alternate.urban)
+    s[s<cellStats(s,max)] <- 1
+  conflict <- s
+    conflict[conflict==cellStats(conflict,max)] <- NA
+    conflict[!is.na(conflict)] <- 1
+    conflict<- conflict*weighted.priority
+  
+    png(paste0(output_path,names(s),"_conflicts.png"),height=12,width=21,units="cm",res=300, bg="transparent",pointsize=10)
+    par(mar=c(0,0,0,0), oma=c(0,0,0,0),xpd=NA)    
+    plot(s,col=c(dev.col,map.background),legend=F,box=F,axes=F)
+      plot(conflict,add=T,col=pri.col,breaks=pri.breaks,legend=F)
+      plot(LH.shp, add=T, lwd=0.5)
+    legend('bottomright',c(pri.labels,"Development"), col="black",fill=c(rev(pri.col),dev.col), bty="n", title=paste0("Conservation priority","\n"," in development zones"), cex=1, xpd=NA)
+  dev.off()
+
+dev.scenarios <- d(label=c("1.Urban development", "2. Hunter Expressway","3. Important Agricultural Lands", "4. Cumulative Development", "5. Mining"), mask=c("urban_all_no_URA3_unclipped_mask_v2","Express_Highway_noBuffer","Important_Agricultural_Lands","All_UIA_no_URA3","Mine_Leases&Appl"))
+
+png(paste0(output_path,"alternate_development_conflicts.png"),height=10,width=21,units="cm",res=300, bg="transparent",pointsize=10)
+par(mfrow=c(2,3),mar=c(0,0,0,0), oma=c(0,0,0,0)) 
+
+for(i in seq(dev.scenarios$label)){
+  s <- raster(unclipped.scenarios[grepl(dev.scenarios$mask[i],unclipped.scenarios)])
+    s[s<cellStats(s,max)] <- 1
+  conflict <- s
+    conflict[conflict==cellStats(conflict,max)] <- NA
+    conflict[!is.na(conflict)] <- 1
+    conflict<- conflict*weighted.priority
+  
+   plot(s,col=c(dev.col,map.background),legend=F,box=F,axes=F)
+      plot(conflict,add=T,col=pri.col,breaks=pri.breaks,legend=F)
+      plot(LH.shp, add=T, lwd=0.5)
+  mtext(dev.scenarios$label[i],side=3,line=-1.25,cex=1,adj=0)
+  }
+
+  plot.new()
+  legend('center',c(pri.labels,"Development"), col="black",fill=c(rev(pri.col),dev.col), bty="n", title=paste0("Conservation priority","\n"," in development zones"), cex=1.2, xpd=NA)
+
+dev.off()
+
+png(paste0(output_path,"alternate_development_footprints.png"),height=10,width=21,units="cm",res=300, bg="transparent",pointsize=10)
+par(mfrow=c(2,3),mar=c(0,0,0,0), oma=c(0,0,0,0)) 
+
+for(i in seq(dev.scenarios$label)){
+  s <- raster(unclipped.scenarios[grepl(dev.scenarios$mask[i],unclipped.scenarios)])
+  
+  plot(s,col=c(dev.col,map.background),legend=F,box=F,axes=F)
+    plot(LH.shp, add=T, lwd=0.5)
+  mtext(dev.scenarios$label[i],side=3,line=-1.25,cex=1,adj=0)
+  }
+
+#   plot.new()
+#   legend('center',c(pri.labels,"Development"), col="black",fill=c(rev(pri.col),dev.col), bty="n", title=paste0("Conservation priority","\n"," in development zones"), cex=1.2, xpd=NA)
+
+dev.off()
+
+urban.dev <- d(label=c("Zoned","Current Strategies","Other Investigation Areas"),value=c(1,2,3),col=as.character(brewer.pal(12,"Paired")[c(2,4,10)]))
+
+png(paste0(output_path,"alternate_urban_development_footprint.png"),height=12,width=21,units="cm",res=300, bg="transparent",pointsize=10)
+    par(mar=c(0,0,0,0), oma=c(0,0,0,0),xpd=NA)    
+
+  s <- raster(unclipped.scenarios[grepl(dev.scenarios$mask[1],unclipped.scenarios)])
+  
+  plot(s,col=c(as.character(urban.dev$col),map.background),legend=F,box=F,axes=F)
+    plot(LH.shp, add=T, lwd=0.5)
+  mtext(dev.scenarios$label[1],side=3,line=-1.25,cex=1,adj=0)
+
+   legend('bottomright',legend=urban.dev$label, xjust=1,inset=c(-0.095,0),col="black",fill=as.character(urban.dev$col), bty="n", , cex=1.2,title.adj=0,xpd=NA)
+
+dev.off()
+
+
+```
+
+
+
+```{r quantify development conflicts}
+scenario.files <- dir(paste0(input_path,"masks/"),pattern=".tif$",full.names=T)
+  unclipped.scenarios <- scenario.files[grepl("unclipped|small.patches",scenario.files)]
+
+protected.areas <- raster(paste0(input_path,"masks/ProtectedAreas_v4.tif"))
+
+level1 <- protected.areas
+  level1[level1!=6] <- NA
+level2 <- protected.areas
+  level2[level2!=5] <- NA
+level3 <- protected.areas
+  level3[level3!=4] <- NA
+all.PAs <- protected.areas
+  all.PAs[all.PAs==3] <- NA
+
+top.30 <- weighted.priority
+  top.30[top.30 < 0.7] <-NA
+
+top.15 <- weighted.priority
+  top.15[top.15 < 0.85] <-NA
+
+top.10 <- weighted.priority
+  top.10[top.10 < 0.9] <-NA
+
+top.05 <- weighted.priority
+  top.05[top.05 < 0.95] <-NA
+
+dev.scenarios <- d(label=c("1. Urban development", "2. Hunter Expressway","3. Important Agricultural Lands", "4. Cumulative Development", "5. Mining"), mask=c("urban_all_no_URA3","Express_Highway_noBuffer","Important_Agricultural_Lands","All_UIA_no_URA3","Mine_Leases&Appl"))
+
+# calculate for components of the urban scenario separately
+urban.dev <- d(label=c("1a. Zoned","1b. URA1&2","1c. Planned development"),value=c(1,2,4),col=as.character(brewer.pal(12,"Paired")[c(2,4,10)]))
+
+developed.fractions <- data.frame(dev=c(as.character(dev.scenarios$label),as.character(urban.dev$label)),dev.ha=NA,dev.pc=NA,dev.veg.ha=NA, dev.veg.pc=NA,top05.ha=NA,top10.ha=NA,top15.ha=NA,top30.ha=NA,level1.ha=NA,level2.ha=NA,level3.ha=NA,all.PA.ha=NA,top05=NA,top10=NA,top15=NA,top30=NA,level1=NA,level2=NA,level3=NA,all.PA=NA)
+
+for(i in seq(dev.scenarios$label)){
+  s <- raster(unclipped.scenarios[grepl(dev.scenarios$mask[i],unclipped.scenarios)])
+    s[s==cellStats(s,max)] <-NA
+  scenario <- ifelse(dev.scenarios$mask[i]=="Mine_Leases&Appl", "Mine_Leases.Appl",as.character(dev.scenarios$mask[i]))
+
+    developed.fractions$dev.ha[i] <- cleared_area$proposed.ha[grepl(paste0(scenario,"_unclipped"),cleared_area$scenario)]
+    developed.fractions$dev.pc[i] <- cleared_area$cleared[grepl(paste0(scenario,"_unclipped"),cleared_area$scenario)]
+    developed.fractions$dev.veg.ha[i] <- cleared_area$proposed.ha[grepl(paste0(scenario,"_mask"),cleared_area$scenario)]
+    developed.fractions$dev.veg.pc[i] <- cleared_area$cleared[grepl(paste0(scenario,"_mask"),cleared_area$scenario)]
+
+
+  developed.fractions$top30.ha[i] <- length(which(!is.na(top.30[s]))==TRUE)
+  developed.fractions$top15.ha[i] <- length(which(!is.na(top.15[s]))==TRUE)
+  developed.fractions$top10.ha[i] <- length(which(!is.na(top.10[s]))==TRUE)
+  developed.fractions$top05.ha[i] <- length(which(!is.na(top.05[s]))==TRUE)
+  
+  developed.fractions$level1.ha[i] <- length(which(!is.na(level1[s]))==TRUE)
+  developed.fractions$level2.ha[i] <- length(which(!is.na(level2[s]))==TRUE)
+  developed.fractions$level3.ha[i] <- length(which(!is.na(level3[s]))==TRUE)
+  developed.fractions$all.PA.ha[i] <- length(which(!is.na(all.PAs[s]))==TRUE)
+
+}
+
+urban <- raster(unclipped.scenarios[grepl(dev.scenarios$mask[1],unclipped.scenarios)])
+  urban[urban==4] <- 3
+urban.clipped <- raster(gsub("_unclipped","",unclipped.scenarios[grepl(dev.scenarios$mask[1],unclipped.scenarios)]))
+  urban.clipped[urban.clipped==4] <- 3
+
+for(i in seq(urban.dev$value)){
+  s <- urban
+    s[s>i] <- NA
+  r <- urban.clipped
+    r[r>i] <- NA
+  
+  developed.fractions$dev.ha[5+i] <- length(urban[urban==i])
+  developed.fractions$dev.pc[5+i] <- length(urban[urban==i]) / length(urban[!is.na(urban)])
+  developed.fractions$dev.veg.ha[5+i] <- length(urban.clipped[urban.clipped==i])
+  developed.fractions$dev.veg.pc[5+i] <- length(urban.clipped[urban.clipped==i]) / length(urban.clipped[!is.na(urban.clipped)])
+  
+  developed.fractions$top30.ha[5+i] <- length(which(!is.na(top.30[s]))==TRUE)
+  developed.fractions$top15.ha[5+i] <- length(which(!is.na(top.15[s]))==TRUE)
+  developed.fractions$top10.ha[5+i] <- length(which(!is.na(top.10[s]))==TRUE)
+  developed.fractions$top05.ha[5+i] <- length(which(!is.na(top.05[s]))==TRUE)
+  
+  developed.fractions$level1.ha[5+i] <- length(which(!is.na(level1[s]))==TRUE)
+  developed.fractions$level2.ha[5+i] <- length(which(!is.na(level2[s]))==TRUE)
+  developed.fractions$level3.ha[5+i] <- length(which(!is.na(level3[s]))==TRUE)
+  developed.fractions$all.PA.ha[5+i] <- length(which(!is.na(all.PAs[s]))==TRUE)
+}
+
+  developed.fractions$top30 <- developed.fractions$top30.ha / length(top.30[!is.na(top.30)])
+  developed.fractions$top15 <- developed.fractions$top15.ha / length(top.15[!is.na(top.15)])
+  developed.fractions$top10 <- developed.fractions$top10.ha / length(top.10[!is.na(top.10)])
+  developed.fractions$top05 <- developed.fractions$top05.ha / length(top.05[!is.na(top.05)])
+  
+  developed.fractions$level1 <- developed.fractions$level1.ha / length(level1[!is.na(level1)])
+  developed.fractions$level2 <- developed.fractions$level2.ha / length(level2[!is.na(level2)])
+  developed.fractions$level3 <- developed.fractions$level3.ha / length(level3[!is.na(level3)])
+  developed.fractions$all.PA <- developed.fractions$all.PA.ha / length(all.PAs[!is.na(all.PAs)])
+  
+
+developed.fractions <- developed.fractions[order(developed.fractions$dev),]
+# write.csv(developed.fractions,paste0(output_path,"developed_fractions.csv"),row.names=F)
+# for(i in seq(pa.breaks)){
+#   protected <- protected.curves[protected.curves$Prop_landscape_lost>=pa.breaks[i],][1,]
+#     protected.fractions$cum.prop.protected <- (1-protected.fractions$fractions)*100
+#     protected.fractions$cum.protected.avg[i] <- (protected[, 4]*100)
+#     protected.fractions$cum.protected.min[i] <- (protected[, 3]*100)
+#   protected <- protected[,-c(1:7)]
+#     protected.fractions$not.protected[i] <- length(which(protected == 0))
+#         protected.fractions$not.protected.sp[i] <- paste(strip.names(colnames(protected[which(protected == 0)])),collapse=", ")
+#         protected.fractions$protected.75[i] <- length(which(protected >= 0.75))
+#         protected.fractions$protected.75.sp[i] <- paste(strip.names(colnames(protected[which(protected >= 0.75)])),collapse=", ")
+#           
+#   weighted <- weighted.curves[weighted.curves$Prop_landscape_lost>=pa.breaks[i],][1,]
+#     protected.fractions$weighted.avg[i] <- (weighted[, 4]*100)
+#     protected.fractions$weighted.min[i] <- (weighted[, 3]*100)
+# }
+
+  protected.fractions <- protected.fractions[order(protected.fractions$protection),]
+   protected.fractions[1,c("prop.protected","protected.avg","protected.mnes","protected.min")] <- protected.fractions[1,c("cum.prop.protected","cum.protected.avg","cum.protected.mnes","cum.protected.min")] 
+   protected.fractions[2,c("prop.protected","protected.avg","protected.mnes","protected.min")] <- protected.fractions[2,c("cum.prop.protected","cum.protected.avg","cum.protected.mnes","cum.protected.min")] - protected.fractions[1,c("cum.prop.protected","cum.protected.avg","cum.protected.mnes","cum.protected.min")]
+  protected.fractions[3,c("prop.protected","protected.avg","protected.mnes","protected.min")] <- protected.fractions[3,c("cum.prop.protected","cum.protected.avg","cum.protected.mnes","cum.protected.min")] - protected.fractions[2,c("cum.prop.protected","cum.protected.avg","cum.protected.mnes","cum.protected.min")]
+
+
+```
+
