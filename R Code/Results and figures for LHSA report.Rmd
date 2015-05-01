@@ -15,7 +15,8 @@ library(RColorBrewer)
 
 # computer
 # computer <- "~"
-computer <- "//654cw-20990/Amy"
+# computer <- "//654cw-20990/Amy"
+computer <- "I:/Super Computer Data"
 
 # define paths for input and output files
 input_path <- paste0(computer,'/GIS_data/Hunter/zonation/lower hunter/')
@@ -52,15 +53,16 @@ LH.urban.clipping.mask <- raster(paste0(computer,"/GIS_Data/Hunter/mask files/LH
 LH.lakes.mask <- raster(paste0(computer,"/GIS_Data/Hunter/mask files/LH.lakes.mask.tif"))
 
 # LH administrative boundary
-  LH.shp <- readShapePoly("//654cw-20990/Amy/GIS_data/Hunter/GIS data from various sources/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/5_LGAs_StudyArea.shp", proj4=GDA94.56)
+  LH.shp <- readShapePoly(paste0(computer,"/GIS_data/Hunter/mask files/5_LGAs_StudyArea.shp"), proj4=GDA94.56)
 
-GH.shp <- readShapePoly("//654cw-20990/Amy/GIS_data/Hunter/Plans/HCCREMS_AreaOfInterest/HCCREMS_AoI.shp", proj4=GDA94) ## NOT FOUND?
+GH.shp <- readShapePoly(paste0(computer,"/GIS_data/Hunter/mask files/HCCREMS_AoI.shp"), proj4=GDA94) ## NOT FOUND?
     GH.shp <- spTransform(GH.shp,GDA94.56)
 GH.clipping.mask <- raster(paste0(computer,"/GIS_Data/Hunter/mask files/GH_PM.clipping.mask.tif")) 
 
 
 # # load horrenda table
 protected.species <- read.csv(paste0(computer,"/GIS_data/Hunter/species point data/IBRA threatened species list.csv"))
+  protected.species <- protected.species[order(protected.species$Scientific.Name),]
     sdm.species <- names[grepl("SDM",names)]
 
 # open tec list
@@ -1028,6 +1030,65 @@ developed.fractions <- developed.fractions[order(developed.fractions$dev),]
    protected.fractions[2,c("prop.protected","protected.avg","protected.mnes","protected.min")] <- protected.fractions[2,c("cum.prop.protected","cum.protected.avg","cum.protected.mnes","cum.protected.min")] - protected.fractions[1,c("cum.prop.protected","cum.protected.avg","cum.protected.mnes","cum.protected.min")]
   protected.fractions[3,c("prop.protected","protected.avg","protected.mnes","protected.min")] <- protected.fractions[3,c("cum.prop.protected","cum.protected.avg","cum.protected.mnes","cum.protected.min")] - protected.fractions[2,c("cum.prop.protected","cum.protected.avg","cum.protected.mnes","cum.protected.min")]
 
+
+```
+
+```{r create report mega tables}
+
+top.priorities <- read.table(paste0(output_path,"Sp_proportions_at_top_fractions.txt"),sep="\t",header=T)
+protected.features <- read.table(paste0(output_path,"Protection_of_features.txt"),sep="\t",header=T)
+
+pa.top.table <- data.frame(Scientific_Name=strip.names(names),Common_Name=NA,Taxa=NA,MNES=NA,Comm_Status=NA,NSW_Status=NA,Top_5=top.priorities$Top5.w,Top_10=top.priorities$Top10.w,Top_15=top.priorities$Top15.w,Top_30=top.priorities$Top30.w,Level_1=protected.features$Level.1,Level_2=protected.features$Level.2,Level_3=protected.features$Level.3)
+  #extract data from Heini's files in Zonation order
+  pa.top.table$Level_2 <- pa.top.table$Level_2 - pa.top.table$Level_1
+  pa.top.table$Level_3 <- pa.top.table$Level_3 - (pa.top.table$Level_1 + pa.top.table$Level_2)
+  pa.top.table$Total <- rowSums(pa.top.table[,c("Level_1","Level_2","Level_3")])
+  pa.top.table[,c("Top_5","Top_10","Top_15","Top_30","Level_1","Level_2","Level_3","Total")] <- pa.top.table[,c("Top_5","Top_10","Top_15","Top_30","Level_1","Level_2","Level_3","Total")] *100
+
+
+  # rename swift parrot and regent honeyeater and reorder
+  pa.top.table$Scientific_Name <- as.character(pa.top.table$Scientific_Name)
+  pa.top.table$Scientific_Name[which(pa.top.table$Scientific_Name=="Swift Parrot")] <- "Lathamus discolor"
+  pa.top.table$Scientific_Name[which(pa.top.table$Scientific_Name=="Regent Honeyeater")] <- "Anthochaera phrygia"
+  pa.top.table <- pa.top.table[order(pa.top.table$Scientific_Name),]
+
+  # add details from protected species megatable
+  pa.top.table$Common_Name <- protected.species$Common.Name[protected.species$Scientific.Name %in% pa.top.table$Scientific_Name]
+  pa.top.table$Taxa <- protected.species$Taxa[protected.species$Scientific.Name %in% pa.top.table$Scientific_Name]
+  pa.top.table$Comm_Status <- protected.species$Comm.status[protected.species$Scientific.Name %in% pa.top.table$Scientific_Name]
+  pa.top.table$NSW_Status <- protected.species$NSW.status[protected.species$Scientific.Name %in% pa.top.table$Scientific_Name]
+  pa.top.table$MNES <- protected.species$mnes[protected.species$Scientific.Name %in% pa.top.table$Scientific_Name]
+    pa.top.table$MNES[pa.top.table$MNES==FALSE] <- ""
+    
+  pa.top.table <- pa.top.table[,c("Taxa","Scientific_Name","Common_Name","MNES","Top_5","Top_10","Top_15","Top_30","Level_1","Level_2","Level_3","Total","Comm_Status","NSW_Status")]
+
+write.csv(pa.top.table,paste0(output_path,"protected megatable for LH report_040215.csv"),row.names=F)
+
+
+# development mega table
+dev.impacts <- read.table(paste0(output_path,"Development_impacts_on_features.txt"),sep="\t",header=T)
+
+dev.impacts <- dev.impacts[,c("Taxa","Scientific.Name","Common.Name","mnes","Urban.LEP","Urban.LEP.URA12","Urban.LEP.URA12.Plans","Infra","Agri","UIA.noURA3","Mines","NSW.status","Comm.status")]
+  dev.impacts[,c("Urban.LEP","Urban.LEP.URA12","Urban.LEP.URA12.Plans","Infra","Agri","UIA.noURA3","Mines")] <- dev.impacts[,c("Urban.LEP","Urban.LEP.URA12","Urban.LEP.URA12.Plans","Infra","Agri","UIA.noURA3","Mines")] * 100
+
+# rename swift parrot and regent honeyeater and reorder
+  dev.impacts$Scientific.Name <- as.character(dev.impacts$Scientific.Name)
+  dev.impacts$Scientific.Name[which(dev.impacts$Scientific.Name=="Swift Parrot")] <- "Lathamus discolor"
+  dev.impacts$Scientific.Name[which(dev.impacts$Scientific.Name=="Regent Honeyeater")] <- "Anthochaera phrygia"
+  dev.impacts <- dev.impacts[order(dev.impacts$Scientific.Name),]
+
+# add details from protected species megatable
+  dev.impacts$Common.Name <- protected.species$Common.Name[protected.species$Scientific.Name %in% dev.impacts$Scientific.Name]
+  dev.impacts$Taxa <- protected.species$Taxa[protected.species$Scientific.Name %in% dev.impacts$Scientific.Name]
+  dev.impacts$Comm.status <- protected.species$Comm.status[protected.species$Scientific.Name %in% dev.impacts$Scientific.Name]
+  dev.impacts$NSW.status <- protected.species$NSW.status[protected.species$Scientific.Name %in% dev.impacts$Scientific.Name]
+  dev.impacts$mnes <- protected.species$mnes[protected.species$Scientific.Name %in% dev.impacts$Scientific.Name]
+    dev.impacts$mnes[dev.impacts$mnes==FALSE] <- ""
+
+colnames(dev.impacts) <- c("Taxa","Scientific_Name","Common_Name","MNES","Zoned","Zoned_+_URA1&2","Zoned_+_URA1&2_+_Planned_development","2._Hunter_Expressway","3._Important_Agricultural_Lands","4._Cumulative_development","5._Mining","NSW_Status","Comm_Status")
+
+write.csv(dev.impacts,paste0(output_path,"development megatable for LH report_040215.csv"),row.names=F)
+    
 
 ```
 
