@@ -21,14 +21,14 @@ library(RColorBrewer)
 # computer <- "~"
 #computer <- "//654cw-20990/Amy"
 # computer <- "Z:/Amy"
-computer <- "H:/UM backup"
+computer <- "I:/Super Computer Data"
 
 # define paths for input and output files
-input_path <- paste0(computer,'/GIS_data/Hunter/zonation/port macquarie/output/')
-output_path <- paste0(computer,'/GIS_data/Hunter/zonation/port macquarie/')
+input_path <- paste0(computer,'/GIS_data/Hunter/zonation/port macquarie/')
+output_path <- paste0(computer,'/GIS_data/Hunter/zonation/port macquarie/output/')
 
 # import biodiversity feature names
-  names <- as.vector(read.table(paste0(output_path,'PM.zonation.spp'), header=F, sep='\t')[,6])
+  names <- as.vector(read.table(paste0(input_path,'PM.zonation.spp'), header=F, sep='\t')[,6])
   species <- gsub('\\.PM\\.tif|_SDM|_SSI', '', names)
 
 # date of the output files
@@ -45,7 +45,7 @@ guilds <- read.csv(paste0(input_path,"PMHC species of interest.csv"))
 ```{r colour palettes}
 map.background <- "whitesmoke"
 
-pa.colours <- data.frame(label=c("Level 1","Level 2","Priority protected","Priority unprotected"),colour=c("#78c679","#006837","#a6611a","grey40"),stringsAsFactors = F)
+pa.colours <- data.frame(label=c("Low security","High security"),colour=c("#78c679","#006837"),stringsAsFactors = F)
 
 # colours for the curves plots - Amy
 col.all <- c("grey60",brewer.pal(4,"Set1"))
@@ -77,7 +77,7 @@ files <- grep(paste0(analysis.date,'.curves.txt'), list.files(input_path), value
 #   files <- files[files!=paste0("output_PMbase",analysis.date,".curves.txt")] # remove baseline scenario
 
 # check for species that have zero observations at the start of the prioritisation
-  baseline.curves <- read.table(paste0(input_path,"output_PMbase_",analysis.date,".curves.txt"), skip=1, header=F, sep='')
+  baseline.curves <- read.table(paste0(output_path,"output_PMbase_",analysis.date,".curves.txt"), skip=1, header=F, sep='')
       colnames(baseline.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', species)
   zero.obs <- baseline.curves[1,8:ncol(baseline.curves)]
     names(zero.obs[which(zero.obs==0)])
@@ -93,21 +93,24 @@ files <- grep(paste0(analysis.date,'.curves.txt'), list.files(input_path), value
   top30.sp <- baseline.curves$ave_prop_rem[baseline.curves$Prop_landscape_lost>=0.7][1]
 
 # weighted baseline curves
-weighted.baseline.curves <- read.table(paste0(input_path,"output_PMbase_weighted_",analysis.date,".curves.txt"), skip=1, header=F, sep='')
+weighted.baseline.curves <- read.table(paste0(output_path,"output_PMbase_weighted_",analysis.date,".curves.txt"), skip=1, header=F, sep='')
       colnames(weighted.baseline.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', species)
 
 ```
 
 ```{r produce baseline priority map}
 
-unweighted_priority <- raster(paste0(input_path,"output_PMbase_",analysis.date,".rank.compressed.tif"))
-weighted_priority <- raster(paste0(input_path,"output_PMbase_weighted_",analysis.date,".rank.compressed.tif"))
+unweighted_priority <- raster(paste0(output_path,"output_PMbase_",analysis.date,".rank.compressed.tif"))
+weighted_priority <- raster(paste0(output_path,"output_PMbase_weighted_",analysis.date,".rank.compressed.tif"))
 
 PM.mask <- raster(paste0(computer,"/GIS_Data/Hunter/mask files/PM.mask.tif"))
 PM.clipping.mask <- raster(paste0(computer,"/GIS_Data/Hunter/mask files/PM.clipping.mask.tif"))
 PM.shp <- readShapePoly(paste0(computer,"/GIS_data/Port Macquarie/Data from PMH/PMHC LGA boundary.shp"), proj4=GDA94.56)
 
-png(paste0(input_path,"PM_unweighted_zonation_priority_",analysis.date,".png"),height=7,width=15,units="cm",res=300, bg="transparent",pointsize=10)
+top30 <- unweighted_priority
+  top30[top30<0.7] <- NA
+
+png(paste0(output_path,"PM_unweighted_zonation_priority_",analysis.date,".png"),height=7,width=15,units="cm",res=300, bg="transparent",pointsize=10)
 par(mar=c(0,0.25,0,0), oma=c(0,0,0,0))
 plot(PM.mask,col=map.background,legend=F,box=F,axes=F,zlim=c(1,7))
   plot(unweighted_priority,col=pri.col,breaks=pri.breaks,add=T,legend=F)
@@ -117,7 +120,7 @@ legend('bottomright', inset=c(0,0), leg.labels, col=rev(pri.col), pch=15, bty="n
   scalebar(10000,type="line",divs=3,below="",cex=0.6,label=c("","10km",""))
 dev.off()
 
-png(paste0(input_path,"PM_weighted_zonation_priority_",analysis.date,".png"),height=7,width=15,units="cm",res=300, bg="transparent", pointsize=10)
+png(paste0(output_path,"PM_weighted_zonation_priority_",analysis.date,".png"),height=7,width=15,units="cm",res=300, bg="transparent", pointsize=10)
 par(mar=c(0,0.25,0,0), oma=c(0,0,0,0))
 plot(PM.mask,col=map.background,legend=F,box=F,axes=F,zlim=c(1,7))
   plot(weighted_priority,col=pri.col,breaks=pri.breaks,add=T,legend=F)
@@ -126,7 +129,7 @@ plot(PM.mask,col=map.background,legend=F,box=F,axes=F,zlim=c(1,7))
   scalebar(10000,type="line",divs=3,below="",cex=0.6,label=c("","10km",""))
 dev.off()
 
-png(paste0(input_path,"PM_unweighted & weighted_priority_",analysis.date,".png"),height=7,width=15,units="cm",res=300, bg="transparent",pointsize=10)
+png(paste0(output_path,"PM_unweighted & weighted_priority_",analysis.date,".png"),height=7,width=15,units="cm",res=300, bg="transparent",pointsize=10)
 par(mar=c(0,0.25,0,0), oma=c(0,0,0,0),mfrow=c(1,2))
 plot(PM.mask,col=map.background,legend=F,box=F,axes=F,zlim=c(1,7))
   plot(unweighted_priority,col=pri.col,breaks=pri.breaks,add=T,legend=F)
@@ -172,7 +175,7 @@ for(s in seq(guilds$species)){
 }
   results$guild[results$guild==""] <- NA
 
-write.csv(results,paste0(input_path,"species-specific_priorities_",analysis.date,".csv"),row.names=F)
+write.csv(results,paste0(output_path,"species-specific_priorities_",analysis.date,".csv"),row.names=F)
 
 ```
 
@@ -188,25 +191,25 @@ top30.table$mean.w.zonation <- mean(results$top30.w)
 top30.table$min.w.zonation <- min(results$top30.w)
 top30.table$n.sp <- length(results$top30>0)
 
-write.csv(top30.table,paste0(input_path,"PM_summary of top30_",analysis.date,".csv"),row.names=F)
+write.csv(top30.table,paste0(output_path,"PM_summary of top30_",analysis.date,".csv"),row.names=F)
 
-png(paste0(input_path,"PM_boxplot of % distribution in top 30_",analysis.date,".png"),width=15,height=15,units="cm",bg="transparent",pointsize=10,res=300)
+png(paste0(output_path,"PM_boxplot of distribution in top 30_",analysis.date,".png"),width=15,height=15,units="cm",bg="transparent",pointsize=10,res=300)
 par(las=1)
 boxplot(results$top30[results$mnes==TRUE],results$top30[results$mnes==FALSE],names=c("MNES","non-MNES"),ylab="Proportion of distribution in top 30%")
 dev.off()
 
-png(paste0(input_path,"PM_boxplot of % distribution in weighted top 30_",analysis.date,".png"),width=15,height=15,units="cm",bg="transparent",pointsize=10,res=300)
+png(paste0(output_path,"PM_boxplot of distribution in weighted top 30_",analysis.date,".png"),width=15,height=15,units="cm",bg="transparent",pointsize=10,res=300)
 par(las=1)
 boxplot(results$top30.w[results$mnes==TRUE],results$top30.w[results$mnes==FALSE],names=c("MNES","non-MNES"),ylab="Proportion of distribution in top 30%")
 dev.off()
 
-png(paste0(input_path,"PM_boxplot of guild distributions in top 30_",analysis.date,".png"),width=15,height=15,units="cm",bg="transparent",pointsize=10,res=300)
+png(paste0(output_path,"PM_boxplot of guild distributions in top 30_",analysis.date,".png"),width=15,height=15,units="cm",bg="transparent",pointsize=10,res=300)
 par(mar=c(4,11,2,1),las=1)
 
 boxplot(results$top30~results$guild,xlab="Proportion of distribution in top 30%",names=c("Amphibians",paste0("Cave-roosting","\n","microbats"),"Frugivorous birds","Nectarivorous birds",paste0("Phalangers, Phascogales","\n","& their predators"),"Shore birds","Water birds"),horizontal = T)
 dev.off()
 
-png(paste0(input_path,"PM_boxplot of guild distributions in weighted top 30_",analysis.date,".png"),width=15,height=15,units="cm",bg="transparent",pointsize=10,res=300)
+png(paste0(output_path,"PM_boxplot of guild distributions in weighted top 30_",analysis.date,".png"),width=15,height=15,units="cm",bg="transparent",pointsize=10,res=300)
 par(mar=c(4,11,2,1),las=1)
 
 boxplot(results$top30.w~results$guild,xlab="Proportion of distribution in top 30%",names=c("Amphibians",paste0("Cave-roosting","\n","microbats"),"Frugivorous birds","Nectarivorous birds",paste0("Phalangers, Phascogales","\n","& their predators"),"Shore birds","Water birds"),horizontal = T)
@@ -218,18 +221,17 @@ dev.off()
 ```{r plot distribution size vs % in top priority}
 sdm.species <- names[grepl("SDM",names)]
 
-distribution.size <- read.table(paste0(input_path,"output_PMbase_",analysis.date,".features_info.txt"),skip=1,header=T)
+distribution.size <- read.table(paste0(output_path,"output_PMbase_",analysis.date,".features_info.txt"),skip=1,header=T)
 
 distribution.size$relative.distribution <- distribution.size$distribution.sum
   distribution.size$relative.distribution[distribution.size$MapFileName %in% sdm.species] <- distribution.size$relative.distribution[distribution.size$MapFileName %in% sdm.species]/1000
   distribution.size$relative.distribution <- distribution.size$relative.distribution/272283
   distribution.size$top.30 <- t(baseline.curves[baseline.curves$Prop_landscape_lost>=(1-0.3),][1,8:ncol(baseline.curves)])
 
-write.csv(distribution.size,paste0(input_path,"PM_distribution.size_",analysis.date,".csv"), row.names=F)
+write.csv(distribution.size,paste0(output_path,"PM_distribution.size_",analysis.date,".csv"), row.names=F)
 
-species.interest <- c("Calyptorhynchus latirostris","cbc.feeding","Drakaea elastica","Caladenia huegelii","Conospermum undulatum","Pseudocheirus occidentalis","Limestone ridges (SCP 26a)","EPA Biodiversity3 10pct","EPA Biodiversity3 30pct","Falsistrellus mackenziei","Acacia horridula","Bettongia penicillata subsp. ogilbyi","Calothamnus rupestris","Dasyurus geoffroii","Setonix brachyurus")
 
-svg(paste0(input_path,"distribution.size_top30priority_",analysis.date,".svg"),height=6,width=6, bg="transparent",pointsize = 12)
+svg(paste0(output_path,"distribution.size_top30priority_",analysis.date,".svg"),height=6,width=6, bg="transparent",pointsize = 12)
 # png(paste0(output_path,"distribution.size_top30priority.png"),height=15,width=15,units="cm",res=300, bg="transparent",pointsize = 12)
   par(mfrow=c(1,1),xpd=NA,las=1)
 
@@ -255,34 +257,106 @@ input.summary$reptiles <- length(results$species[grepl("reptiles",results$taxa)]
 input.summary$sdm <- length(results$species[grepl("SDM",results$datatype)])
 input.summary$points <- length(results$species[grepl("points",results$datatype)])
 
-write.csv(input.summary,paste0(input_path,"PM_summary of input data_",analysis.date,".csv"),row.names=F)
+write.csv(input.summary,paste0(output_path,"PM_summary of input data_",analysis.date,".csv"),row.names=F)
 ```
 
-```{r assess protected areas}
-PA.clipped.mask <- raster(paste0(output_path,"scenarios/ProtectedAreas_v2_clipped.tif"))
-PA.mask <- raster(paste0(output_path,"scenarios/PM_ProtectedAreas_v2.tif"))
+```{r protected areas}
+PA.clipping.mask <- raster(paste0(input_path,"scenarios/ProtectedAreas_v2_clipped.tif"))
+PA.mask <- raster(paste0(input_path,"scenarios/PM_ProtectedAreas_v2.tif"))
 
-PA_priority <- raster(paste0(input_path,"output_PM_PA_",analysis.date,".rank.compressed.tif"))
-PA_weighted_priority <- raster(paste0(input_path,"output_PM_PA_weighted_",analysis.date,".rank.compressed.tif"))
+  png(paste0(output_path,"Protected_areas.png"),height=15,width=15,units="cm",res=300, bg="transparent",pointsize = 10)
+      par(mfrow=c(1,1),mar=c(0,0.25,0.25,0.25), oma=c(0.25,0,0,5),xpd=NA)
+  
+    plot(PM.clipping.mask,col=map.background,legend=F,box=F,axes=F)
+      plot(PA.mask,col=c(NA,pa.colours$colour[1:2]),add=T,legend=F,breaks=c(0,1,2,3))
+      plot(PM.shp, add=T, lwd=0.5)
+  
+    legend("bottomright",inset=c(-0.20,0.2),xjust=1,pa.colours$label,col=pa.colours$colour,pch=15,bty="n",title="Protected Areas",cex=1,xpd=NA)
+  dev.off()
 
-protected.areas.plot <- PA.mask
+
+
+```
+
+```{r assess priorities within PAs}
+
+PA_priority <- raster(paste0(output_path,"output_PM_PA_",analysis.date,".rank.compressed.tif"))
+PA_weighted_priority <- raster(paste0(output_path,"output_PM_PA_weighted_",analysis.date,".rank.compressed.tif"))
+
+PA.curves <- read.table(paste0(output_path,"output_PM_PA_",analysis.date,".curves.txt"), skip=1, header=F, sep='')
+      colnames(PA.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', species)
+weighted.PA.curves <- read.table(paste0(output_path,"output_PM_PA_weighted_",analysis.date,".curves.txt"), skip=1, header=F, sep='')
+      colnames(weighted.PA.curves) <- c('Prop_landscape_lost', 'cost_needed_for_top_fraction', 'min_prop_rem', 'ave_prop_rem', 'W_prop_rem', 'ext-1', 'ext-2', species)
+
+# proportion of NPs and State Forests
+np <- as.numeric(freq(PA.clipping.mask)[3,2]/sum(freq(PA.clipping.mask)[1:3,2]))
+sf <- as.numeric(freq(PA.clipping.mask)[2,2]/sum(freq(PA.clipping.mask)[1:3,2]))
+
+# mean % of high protection (in NPs)
+PA.curves[which(abs(PA.curves$Prop_landscape_lost-(1-np))==min(abs(PA.curves$Prop_landscape_lost-(1-np)))),4]
+# min % of high protection (in NPs)
+PA.curves[which(abs(PA.curves$Prop_landscape_lost-(1-np))==min(abs(PA.curves$Prop_landscape_lost-(1-np)))),3]
+
+#species-specific protection within high security sites
+results$PA.High <- t(PA.curves[which(abs(PA.curves$Prop_landscape_lost-(1-np))==min(abs(PA.curves$Prop_landscape_lost-(1-np)))),8:ncol(PA.curves)])
+results$PA.Low <- NA
+results$PA.Total <- t(PA.curves[which(abs(PA.curves$Prop_landscape_lost-(1-(np+sf)))==min(abs(PA.curves$Prop_landscape_lost-(1-(np+sf))))),8:ncol(PA.curves)])
+results$PA.Low <- results$PA.Total - results$PA.High
+
+
+
+# which species are missing entirely from NPs?
+np.gap.sp <- which(PA.curves[which(abs(PA.curves$Prop_landscape_lost-(1-np))==min(abs(PA.curves$Prop_landscape_lost-(1-np)))),8:ncol(PA.curves)]==0)
+np.gap.sp.names <- gsub('_', ' ', species[np.gap.sp])
+
+
+# mean % with any protection (either in NPs or SFs)
+PA.curves[which(abs(PA.curves$Prop_landscape_lost-(1-(np+sf)))==min(abs(PA.curves$Prop_landscape_lost-(1-(np+sf))))),4]
+# min % of high protection (in NPs)
+PA.curves[which(abs(PA.curves$Prop_landscape_lost-(1-(np+sf)))==min(abs(PA.curves$Prop_landscape_lost-(1-(np+sf))))),3]
+# which species are missing entirely?
+gap.sp <- which(PA.curves[which(abs(PA.curves$Prop_landscape_lost-(1-(np+sf)))==min(abs(PA.curves$Prop_landscape_lost-(1-(np+sf))))),8:ncol(PA.curves)]==0)
+gap.sp.names <- gsub('_', ' ', species[gap.sp])
+
+# GAP species
+gap.sp.table <- merge(protected.species, as.data.frame(np.gap.sp.names), by.x='Scientific.Name', by.y='np.gap.sp.names')
+gap.sp.table$NP.GAP <- TRUE
+gap.sp.table$GAP <- gap.sp.table$Scientific.Name %in% gap.sp.names
+
+write.csv(gap.sp.table, paste0(output_path,"PA_Gap_species_",analysis.date,".csv"),row.names=F)
+
+pa.breaks <- c(1-np,1-(np+sf))
+  pa.breaks <- rev(c(1,pa.breaks[1:2],pa.breaks[2]-0.05,pa.breaks[2]-0.10,pa.breaks[2]-0.15,pa.breaks[2]-0.30,0))
+
+protected.areas.plot <- PA.clipping.mask
   protected.areas.plot[protected.areas.plot==1] <- 0
-  protected.areas.plot[protected.areas.plot!=0] <- 1
+#   protected.areas.plot[protected.areas.plot!=0] <- 1
 
-protected.priorities <- protected.areas.plot + unweighted_priority
+protected.priorities <- mask(protected.areas.plot + unweighted_priority,top30)
 
-png(paste0(in☼put_path,"Protected_Priorities.png"),height=15,width=15,units="cm",res=300, bg="transparent",pointsize = 12)
-    par(mfrow=c(1,1),mar=c(0,0.25,0.25,0.25), oma=c(0.25,0,0,4),xpd=NA)
-leg.labels <- c("Top 5%","Top 10%","Top 15%","Top 30%","Protected priorities", "Protected areas")  
+png(paste0(output_path,"Protected_Priorities_",analysis.date,".png"),height=15,width=15,units="cm",res=300, bg="transparent",pointsize = 10)
+    par(mfrow=c(1,1),mar=c(0,0.25,0.25,0.25), oma=c(0.25,0,0,5),xpd=NA)
+leg.labels <- c("Top 5%","Top 10%","Top 15%","Top 30%","","Protected priorities", "Protected areas")  
+
+  plot(PA.clipping.mask,col=c("whitesmoke","grey70"),breaks=c(0,1,3),legend=F,box=F,axes=F)
+#     plot(PA.clipping.mask,col=c("whitesmoke","grey70"),add=T,legend=F,breaks=c(0,1,2,3))
+    plot(protected.priorities,add=T,col=c(NA,pri.col[2:5],"grey50"),breaks=c(0,0.7,0.85,0.9,0.95,1,4),legend=F)
+    plot(PM.shp, add=T, lwd=0.5)
+
+legend("bottomright",inset=c(-0.30,0.2),xjust=1,leg.labels,col=c(rev(pri.col[2:5]),NA,"grey50","grey70"),pch=15,bty="n",title="Conservation priorities",cex=1,xpd=NA)
+    dev.off()
+
+png(paste0(output_path,"Expansion_Priorities_",analysis.date,".png"),height=15,width=15,units="cm",res=300, bg="transparent",pointsize = 10)
+    par(mfrow=c(1,1),mar=c(0,0.25,0.25,0.25), oma=c(0.25,0,0,5),xpd=NA)
+leg.labels <- c("Top 5%","Top 10%","Top 15%","Top 30%","","Protected areas")  
 
   plot(PM.clipping.mask,col="whitesmoke",legend=F,box=F,axes=F)
-    plot(PA.mask,col="grey70",add=T,legend=F,zlim=c(4,6))
-    plot(protected.priorities,add=T,col=c(NA,pri.col[2:5],"grey50"),breaks=c(0,0.7,0.85,0.9,0.95,1,2),legend=F)
-#     plot(PP.shp, add=T, lwd=0.5)
+    plot(PA_priority,add=T,col=c(NA,pri.col[2:5],"grey70","grey70"),breaks=pa.breaks,legend=F)
+    plot(PM.shp, add=T, lwd=0.5)
 
 #   legend(435000,6450000,leg.labels[1:3],col=rev(pa.colours$colour[1:3]),pch=15,bty="n",title="Protected Areas",cex=1,xpd=NA,title.adj=0)
 # legend(435000,6425000,leg.labels[4:5],col=pa.colours$colour[4:5],pch=15,bty="n",title="Conservation priorities",cex=1,xpd=NA,title.adj=0)
-legend("bottomright",inset=c(-0.1,0),xjust=1,leg.labels,col=c(rev(pri.col[2:5]),"grey50", "grey70"),pch=15,bty="n",title="Conservation priority",cex=1,xpd=NA)
+legend("bottomright",inset=c(-0.30,0.2),xjust=1,leg.labels,col=c(rev(pri.col[2:5]),NA,"grey70"),pch=15,bty="n",title="Expansion priorities",cex=1,xpd=NA)
     dev.off()
 
 ```
