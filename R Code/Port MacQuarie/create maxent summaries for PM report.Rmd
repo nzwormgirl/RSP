@@ -11,7 +11,8 @@ rm(list=ls())
 library(dplyr)
 
 # computer <- "~" #My computer
-computer <- "Z:/Amy" #Super computer
+computer <- "I:/Super Computer Data"
+# computer <- "Z:/Amy" #Super computer
 # computer <- "//654cw-20990/Amy"
 
 source("R code/rbind.columns.r")
@@ -106,6 +107,7 @@ ssiResults$Species <- gsub("_"," ",gsub("_SSI.PM.tif","",PM.ssi))
 
   ssiResults$Taxa <- protected.species$Taxa[protected.species$Scientific.Name %in% ssiResults$Species]
   ssiResults$Family <- protected.species$Family[protected.species$Scientific.Name %in% ssiResults$Species]
+  ssiResults$Common.Name <- protected.species$Common.Name[protected.species$Scientific.Name %in% ssiResults$Species]
   ssiResults$Comm.Status <- protected.species$Comm.status[protected.species$Scientific.Name %in% ssiResults$Species]
   ssiResults$NSW.Status <- protected.species$NSW.status[protected.species$Scientific.Name %in% ssiResults$Species]
   # ssiResults$Status <- protected.species$combined.status[protected.species$Scientific.Name %in% ssiResults$Species]
@@ -224,3 +226,15 @@ dev.off()
 
 
 ```
+
+```{r filter plants by PMHC list}
+
+plants_MR <- read.csv(paste0(PM.zonation.dir,"plants_PM report - maxent summary.csv")) 
+}
+
+plants_MR <- plants_MR[plants_MR$Species %in% sort(PM.plants$ScientificName),]
+write.csv(plants_MR,paste0(PM.zonation.dir,"plants_filtered_PM report - maxent summary.csv"),row.names=F) 
+
+
+```
+
