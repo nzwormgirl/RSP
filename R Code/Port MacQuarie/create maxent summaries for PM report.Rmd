@@ -148,7 +148,7 @@ write.csv(poorly.modelled,paste0(PM.zonation.dir,"PM report - poorly modelled sp
 names(output) <- gsub("2000","",names(output))
 
 summary <- {
-  output %>%
+  output[!is.na(output$Training.samples),] %>%
     group_by(Taxa) %>%
       summarise(
         N = n(),
