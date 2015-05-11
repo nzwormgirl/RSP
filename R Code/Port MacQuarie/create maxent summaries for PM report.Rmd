@@ -148,7 +148,7 @@ write.csv(poorly.modelled,paste0(PM.zonation.dir,"PM report - poorly modelled sp
 names(output) <- gsub("2000","",names(output))
 
 summary <- {
-  output %>%
+  output[!is.na(output$Training.samples),] %>%
     group_by(Taxa) %>%
       summarise(
         N = n(),
@@ -184,10 +184,11 @@ summary <- {
 }
 
 summary.table <- as.data.frame(summary)
+  summary.table[,c("cold_temp.mean","cold_temp.se","hot_temp.mean","hot_temp.se","mean_rain.mean","mean_rain.se","seasonal_rain.mean","seasonal_rain.se","mean_solar.mean","mean_solar.se","slope.mean","slope.se","rugg1000.mean","rugg1000.se","terr1000.mean","terr1000.se","final_vegetation.mean","final_vegetation.se","Dry_sclerophyll_forests.mean","Dry_sclerophyll_forests.se","Rainforests.mean","Rainforests.se","Wet_sclerophyll_forests.mean","Wet_sclerophyll_forests.se","soil.mean","soil.se")] <- round(summary.table[,c("cold_temp.mean","cold_temp.se","hot_temp.mean","hot_temp.se","mean_rain.mean","mean_rain.se","seasonal_rain.mean","seasonal_rain.se","mean_solar.mean","mean_solar.se","slope.mean","slope.se","rugg1000.mean","rugg1000.se","terr1000.mean","terr1000.se","final_vegetation.mean","final_vegetation.se","Dry_sclerophyll_forests.mean","Dry_sclerophyll_forests.se","Rainforests.mean","Rainforests.se","Wet_sclerophyll_forests.mean","Wet_sclerophyll_forests.se","soil.mean","soil.se")],2)
+  summary.table[,c("AUC.mean","AUC.se")] <- round(summary.table[,c("AUC.mean","AUC.se")],4)
   summary.table <- as.data.frame(t(summary.table[,2:ncol(summary.table)]))
   names(summary.table) <- c("amphibians","birds","mammals","plants","reptiles")
   summary.table <- summary.table[,c("amphibians","birds","mammals","plants","reptiles")]
-  summary.table <- round(summary.table,2)
 
 envi.parameters <- gsub("2000|Test\\.","",envi.parameters)
 
