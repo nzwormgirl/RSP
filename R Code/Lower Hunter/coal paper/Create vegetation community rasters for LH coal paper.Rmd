@@ -70,7 +70,6 @@ for(i in seq(pct$MU_NAME)){
 
 close(pb)
 
-
 # check there is no overlap
 extant.stack <- stack(dir("I:/Super Computer Data/GIS_data/Hunter/zonation/lower hunter coal paper/vegetation communities/extant/",pattern=".tif$",full.names=T))
   extant.sum <- sum(extant.stack)
@@ -81,6 +80,7 @@ pre1750.stack <- stack(dir("I:/Super Computer Data/GIS_data/Hunter/zonation/lowe
 ```
 
 
+The code below was the original approach but note that it leads to some overlap btwn communities, so don't use this code chuck. Just keeping it in case we need it for future reference.
 ```{r create community rasters}
 
 pct <- unique(pre1750.shp$MU_NAME)

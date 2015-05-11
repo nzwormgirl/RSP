@@ -68,6 +68,11 @@ PM.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/PM.mask.tif"))
 
   declared_wilderness.raster <- create.raster(declared_wilderness.shp,PM.mask,"declared_wilderness",value=3)
 
+# Declared wilderness
+  forest_mngmt_zones.shp <- readShapePoly(paste0(input.directory,"Forest_Corp_Conservation_Management_Zones.shp"), proj4string=GDA94.56)
+
+  forest_mngmt_zones.raster <- create.raster(declared_wilderness.shp,PM.mask,"forest_mngmt_zones",value=3)
+
 # State forests
   State_forests.raster <- create.raster(NPWS.shp[grepl("State Forest",NPWS.shp$TYPE),],PM.mask,"State_Forests",value=2)
 
@@ -90,18 +95,18 @@ PM.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/PM.mask.tif"))
 
 ```{r merge rasters, warning=FALSE,error=FALSE,echo=FALSE,message=FALSE,tidy=TRUE, results='hide'}
 
-protected.areas <- max(stack(NPWS.raster,State_forests.raster,protected_crown_council_land.raster,unprotected_crown_council_land.raster,declared_wilderness.raster,pnf.raster))
+protected.areas <- max(stack(NPWS.raster,State_forests.raster,protected_crown_council_land.raster,unprotected_crown_council_land.raster,declared_wilderness.raster,pnf.raster,forest_mngmt_zones.raster))
   protected.areas[protected.areas<2] <- 1
   protected.areas <- mask(protected.areas,PM.mask)
  
-    writeRaster(protected.areas, filename=paste0(output.directory,"PM_ProtectedAreas_v2"), format="GTiff", overwrite=T)
+    writeRaster(protected.areas, filename=paste0(output.directory,"PM_ProtectedAreas_v3"), format="GTiff", overwrite=T)
 
 # create constant protected areas layer
   protected.areas.constant <- protected.areas
   protected.areas.constant[protected.areas.constant>1] <- 2
-  writeRaster(protected.areas.constant, filename=paste0(output.directory,"PM_ProtectedAreas_v2_Constant"), format="GTiff", overwrite=T)
+  writeRaster(protected.areas.constant, filename=paste0(output.directory,"PM_ProtectedAreas_v3_Constant"), format="GTiff", overwrite=T)
 
-  png(paste0(output.directory,"PM_protected_areas_v2.png"),height=15,width=15,units="cm",res=300, bg="transparent",pointsize=10)
+  png(paste0(output.directory,"PM_protected_areas_v3.png"),height=15,width=15,units="cm",res=300, bg="transparent",pointsize=10)
 
   par(mar=c(0,0.25,3,0), oma=c(0,0,0,0))
   plot(protected.areas, zlim=c(1,3),legend=F,col = rev(terrain.colors(3)), main="Security of Protected Areas",axes=F, box=F)
@@ -111,14 +116,20 @@ dev.off()
 
 plot(protected.areas.constant, legend=F, main="Protected Areas",axes=F,box=F)
 
+protected.high <- protected.areas
+  protected.high[protected.high<3] <- 1
+writeRaster(protected.high, filename=paste0(output.directory,"PM_ProtectedAreas_v3_High"), format="GTiff", overwrite=T)
+
 ```
 
 The security layer was then clipped by the PMHC vegetation mask for inclusion in the Zonation analyses.
 
 ```{r clip protected areas by vegetation mask for zonation, warning=FALSE,error=FALSE,echo=FALSE,message=FALSE,tidy=TRUE, results='hide'}
-protected.areas.constant.clip <- mask(protected.areas.constant,PM.clipping.mask, filename=paste0(output.directory,"ProtectedAreas_v2_Constant_clipped"), format="GTiff", overwrite=T)
+protected.areas.constant.clip <- mask(protected.areas.constant,PM.clipping.mask, filename=paste0(output.directory,"ProtectedAreas_v3_Constant_clipped"), format="GTiff", overwrite=T)
 
-protected.areas.clip <- mask(protected.areas,PM.clipping.mask, filename=paste0(output.directory,"ProtectedAreas_v2_clipped"), format="GTiff", overwrite=T)
+protected.areas.clip <- mask(protected.areas,PM.clipping.mask, filename=paste0(output.directory,"ProtectedAreas_v3_clipped"), format="GTiff", overwrite=T)
+
+protected.areas.high.clip <- mask(protected.high,PM.clipping.mask, filename=paste0(output.directory,"ProtectedAreas_v3_High_clipped"), format="GTiff", overwrite=T)
 
 
 plot(protected.areas.constant.clip, legend=F, main="Protected Areas (clipped)",axes=F, box=F)
