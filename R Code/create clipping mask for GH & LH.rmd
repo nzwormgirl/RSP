@@ -7,54 +7,60 @@ Create a clippling mask that is used to cut the MaxEnt output for use in Zonatio
 * Probably need to add a solid GH layer as well 
 
 ```{r setup_functions}
-#load packages and set working directory
+#load library and set working directory
   rm(list=ls())
   
-  packages(raster)
-  packages(rgdal)
-  packages(maptools)
-  packages(rgeos)
-  source("C:/Users/awhitehead/Dropbox/Random R code/shp2raster.R")
+  library(raster)
+  library(rgdal)
+  library(maptools)
+  library(rgeos)
+  source("R code/shp2raster.R")
 
-  computer <- "//654cw-20990/Amy"
+#   computer <- "//654cw-20990/Amy"
+#   computer <- "I:/Super Computer Data"
+  computer <- "H:/UM backup"
+#   computer <- "Z:/Amy"
 
   GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
   GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 
 # Lakes
-  lakes <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/Lakes/Lakes.shp",proj4string=CRS("+proj=utm +zone=56 +south +ellps=aust_SA +units=m +no_defs"))
+  lakes <- readShapePoly(paste0(computer,"/GIS_data/Hunter/All data from harddrive/Lakes/Lakes.shp"),proj4string=CRS("+proj=utm +zone=56 +south +ellps=aust_SA +units=m +no_defs"))
     lakes <- spTransform(lakes,GDA94.56)
 
+# GH & PM boundary
+  GH_PM.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/GH_PM.mask.tif"))
+
 # GH administrative boundary
-  GH.mask <- raster("~/GIS_data/Hunter/mask files/GH.mask.tif")
+#   GH.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/GH.mask.tif"))
 
 # GH shapefile
-  GH.shp <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From HCCREMS/Boundaries/AoI/HCCREMS_LGA.shp",proj4=GDA94)
+  GH.shp <- readShapePoly(paste0(computer,"/GIS_data/Hunter/All data from harddrive/From HCCREMS/Boundaries/AoI/HCCREMS_LGA.shp"),proj4=GDA94)
+    GH.shp <- spTransform(GH.shp,GDA94.56)
   HV.shp <- GH.shp[grepl("NEWCASTLE|PORT STEPHENS|MAITLAND|CESSNOCK|LAKE MACQUARIE|WYONG|GOSFORD",GH.shp$lganame),]
-    HV.shp <- spTransform(HV.shp,GDA94.56)
+#     HV.shp <- spTransform(HV.shp,GDA94.56)
 
-# GH & PM boundary
-  GH_PM.mask <- raster("~/GIS_data/Hunter/mask files/GH_PM.mask.tif")
+  GH.mask <- mask(crop(GH_PM.mask,GH.shp),GH.shp,filename=paste0(computer,"/GIS_data/Hunter/mask files/GH.mask.tif"),overwrite=T)
   
 # LH administrative boundary
-  LH.shp <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/5_LGAs_StudyArea.shp", proj4=GDA94.56)
+  LH.shp <- readShapePoly(paste0(computer,"/GIS_data/Hunter/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/5_LGAs_StudyArea.shp"), proj4=GDA94.56)
 
   
 # create LH mask, snapping to the GH mask
-  LH.mask <- crop(rasterize(LH.shp,GH.mask),LH.shp, filename="~/GIS_data/Hunter/mask files/LH.mask.tif",format="GTiff",overwrite=T)
+  LH.mask <- crop(rasterize(LH.shp,GH_PM.mask,value=1),LH.shp, filename=paste0(computer,"/GIS_data/Hunter/mask files/LH.mask.tif"),overwrite=T)
 
 # UH administrative boundary bounded by HCCREMS AoI
-  UH.shp <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/Upper Hunter Strategic Assessment Review/AoI/UHSA_StudyArea_within_HCCREMS.shp",proj4=GDA94)
+  UH.shp <- readShapePoly(paste0(computer,"/GIS_data/Hunter/All data from harddrive/Upper Hunter Strategic Assessment Review/AoI/UHSA_StudyArea_within_HCCREMS.shp"),proj4=GDA94)
     UH.shp <- spTransform(UH.shp,GDA94.56)
   
 # create LH mask, snapping to the GH mask
-  UH.mask <- crop(rasterize(UH.shp,GH.mask,value=1),UH.shp, filename="~/GIS_data/Hunter/mask files/UH_HCCREMS.mask.tif",format="GTiff",overwrite=T)
+  UH.mask <- crop(rasterize(UH.shp,GH_PM.mask,value=1),UH.shp, filename=paste0(computer,"/GIS_data/Hunter/mask files/UH_HCCREMS.mask.tif"),overwrite=T)
 
 # create Hunter Valley (7 LGA) mask
-  HV.mask <- crop(rasterize(HV.shp,GH.mask,value=1),HV.shp, filename="~/GIS_data/Hunter/mask files/HV.mask.tif",format="GTiff",overwrite=T)
+  HV.mask <- crop(rasterize(HV.shp,GH_PM.mask,value=1),HV.shp, filename=paste0(computer,"/GIS_data/Hunter/mask files/HV.mask.tif"),format="GTiff",overwrite=T)
 
 # create Port Macquarie mask
- PM.shp <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/Port MacQuarie/PMHC LGA boundary.shp")
+ PM.shp <- readShapePoly(paste0(computer,"/GIS_data/Hunter/All data from harddrive/Port MacQuarie/PMHC LGA boundary.shp"))
     PM.mask <- crop(rasterize(PM.shp,GH_PM.mask,value=1),PM.shp, filename=paste0(computer,"/GIS_data/Hunter/mask files/PM.mask.tif"),format="GTiff",overwrite=T)
 ```
 
@@ -63,7 +69,7 @@ The clipping masks are based on remnant vegetation after standardising the layer
 
 ```{r create clipping masks}
 # LH_LZN_Existing_Urban_Areas_OEH_Revised
-  LH.existing.urban <- readShapePoly("~/GIS_data/Hunter/All data from harddrive/From OEH/Raw data for RGP report/LH_LZN_Existing_Urban_Areas_OEH_Revised.shp")
+  LH.existing.urban <- readShapePoly(paste0(computer,"/GIS_data/Hunter/All data from harddrive/From OEH/Raw data for RGP report/LH_LZN_Existing_Urban_Areas_OEH_Revised.shp"))
 
   LH.exurban.mask <- shp2raster(LH.existing.urban,LH.mask,value=0,bkg=1,label="LH.urban.mask",save=F)
     LH.exurban.mask[LH.exurban.mask==0] <- NA
@@ -72,46 +78,44 @@ The clipping masks are based on remnant vegetation after standardising the layer
     LH.lakes.mask <- shp2raster(lakes,LH.mask,value=0,bkg=1,label="lakes",save=F)
     LH.lakes.mask[LH.lakes.mask==0]<-NA
 
-writeRaster(LH.lakes.mask,"//654cw-20990/Amy/GIS_data/Hunter/mask files/LH.lakes.mask.tif",format="GTiff",overwrite=T)
+writeRaster(LH.lakes.mask,paste0(computer,"/GIS_data/Hunter/mask files/LH.lakes.mask.tif"),overwrite=T)
 
 LH.exurban.mask <- min(LH.exurban.mask,LH.lakes.mask)
 
-  writeRaster(LH.exurban.mask,"//654cw-20990/Amy/GIS_data/Hunter/mask files/LH.urban.clipping.mask.tif",format="GTiff",overwrite=T)
-
-
-# Greater Hunter clipping mask
-  GH.veg <- raster("~/GIS_data/Hunter/Maxent_files/ghm_environmental_data/standardised_rasters/final_vegetation.asc",crs=GDA94.56)
-    GH.veg[!is.na(GH.veg)] <- 1
-  writeRaster(GH.veg,filename="~/GIS_data/Hunter/mask files/GH.clipping.mask.tif",format="GTiff",overwrite=T)
+  writeRaster(LH.exurban.mask,paste0(computer,"/GIS_data/Hunter/mask files/LH.urban.clipping.mask.tif"),overwrite=T)
 
 # Greater Hunter & Port Mac clipping mask
   GH_PM.veg <- raster(paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/environmental_data/standardised_rasters/final_vegetation.asc"),crs=GDA94.56)
   GH_PM.veg[GH_PM.veg==0] <- NA  
   GH_PM.veg[!is.na(GH_PM.veg)] <- 1
-  writeRaster(GH_PM.veg,filename=paste0(computer,"/GIS_data/Hunter/mask files/GH_PM.clipping.mask.tif"),format="GTiff",overwrite=T)
+  writeRaster(GH_PM.veg,filename=paste0(computer,"/GIS_data/Hunter/mask files/GH_PM.clipping.mask.tif"),overwrite=T)
+
+# Greater Hunter clipping mask
+  GH.veg <- mask(crop(GH_PM.veg,GH.mask),GH.mask)
+  writeRaster(GH.veg,filename=paste0(computer,"/GIS_data/Hunter/mask files/GH.clipping.mask.tif"),overwrite=T)
 
 # LH clipping mask
-  LH.veg <- mask(crop(GH.veg,LH.mask),LH.exurban.mask,filename="~/GIS_data/Hunter/mask files/LH.clipping.mask.tif",format="GTiff",overwrite=T)
+  LH.veg <- mask(crop(GH_PM.veg,LH.mask),LH.exurban.mask,filename=paste0(computer,"/GIS_data/Hunter/mask files/LH.clipping.mask.tif"),overwrite=T)
 
 # UH clipping mask
-UH.veg <- mask(crop(GH.veg,UH.mask),UH.mask,filename="~/GIS_data/Hunter/mask files/UH_HCCREMS.clipping.mask.tif",format="GTiff",overwrite=T)
+UH.veg <- mask(crop(GH_PM.veg,UH.mask),UH.mask,filename=paste0(computer,"/GIS_data/Hunter/mask files/UH_HCCREMS.clipping.mask.tif"),overwrite=T)
 
 # HV clipping mask
-HV.veg <- mask(crop(GH.veg,HV.mask),HV.mask,filename="~/GIS_data/Hunter/mask files/HV.clipping.mask.tif",format="GTiff",overwrite=T)
+HV.veg <- mask(crop(GH_PM.veg,HV.mask),HV.mask,filename=paste0(computer,"/GIS_data/Hunter/mask files/HV.clipping.mask.tif"),overwrite=T)
 
 # PM clipping mask
-PM.veg <- mask(crop(GH_PM.veg,PM.mask),PM.mask,filename=paste0(computer,"/GIS_data/Hunter/mask files/PM.clipping.mask.tif"),format="GTiff",overwrite=T)
+PM.veg <- mask(crop(GH_PM.veg,PM.mask),PM.mask,filename=paste0(computer,"/GIS_data/Hunter/mask files/PM.clipping.mask.tif"),overwrite=T)
 
 ```
 
 ```{r wyong}
 # wyong clipping mask
-wyong.mask <- raster("~/GIS_data/Hunter/mask files/wyong.mask.tif")
-wyong.veg <- readShapePoly("~/GIS_data/Hunter/vegetation/Vegetation2008_WSC_20140716.shp",proj4string=GDA94.56)
+wyong.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/wyong.mask.tif"))
+wyong.veg <- readShapePoly(paste0(computer,"/GIS_data/Hunter/vegetation/Vegetation2008_WSC_20140716.shp"),proj4string=GDA94.56)
 
 # Force Tuggerah Lakes EEC into clipping mask
-tuggerah.lakes <- readShapePoly("//654cw-20990/Amy/GIS_data/Wyong/Wyong Shire Council Data/Species/TuggerahLakesSaltmarsh(EEC)_WSC_20140716.shp",proj4string=GDA94.56)
-tuggerah.lakes.dist <- readShapePoly("//654cw-20990/Amy/GIS_data/Wyong/Wyong Shire Council Data/Species/TuggerahLakesSaltmarshDisturbedZone(EEC)_WSC_20140716.shp",proj4string=GDA94.56)
+tuggerah.lakes <- readShapePoly(paste0(computer,"/GIS_data/Wyong/Wyong Shire Council Data/Species/TuggerahLakesSaltmarsh(EEC)_WSC_20140716.shp"),proj4string=GDA94.56)
+tuggerah.lakes.dist <- readShapePoly(paste0(computer,"/GIS_data/Wyong/Wyong Shire Council Data/Species/TuggerahLakesSaltmarshDisturbedZone(EEC)_WSC_20140716.shp"),proj4string=GDA94.56)
 
 tuggerah.lakes.mask <- shp2raster(gBuffer(tuggerah.lakes,width=100),wyong.mask,value=1,bkg=0,label="TuggerahLakesSaltmarsh(EEC)_WSC_20140716",save=F)
 tuggerah.lakes.dist.mask <- shp2raster(gBuffer(tuggerah.lakes.dist,width=100),wyong.mask,value=0.5,bkg=0,label="TuggerahLakesSaltmarshDisturbedZone(EEC)_WSC_20140716",save=F)
@@ -121,20 +125,20 @@ tuggerah.lakes.combined <- sum(tuggerah.lakes.mask,tuggerah.lakes.dist.mask)
   tuggerah.lakes.combined[tuggerah.lakes.combined==0] <- NA
 
 # Tetratheca juncea
-  tet.jun <- readShapePoints("//654cw-20990/Amy/GIS_data/Wyong/Wyong Shire Council Data/Species/Tetratheca_juncea_WSC_20140716.shp",proj4string=GDA94.56)
+  tet.jun <- readShapePoints(paste0(computer,"/GIS_data/Wyong/Wyong Shire Council Data/Species/Tetratheca_juncea_WSC_20140716.shp"),proj4string=GDA94.56)
   
   tet.jun.mask <- shp2raster(gBuffer(tet.jun,width=100),wyong.mask,value=1,bkg=NA,label="Tetratheca_juncea_WSC_20140716",save=F)
 
 # Corunastylis_charmhaven
-  cor.cha <- readShapePoly("//654cw-20990/Amy/GIS_data/Wyong/Wyong Shire Council Data/Species/Corunastylis_charmhaven_WSC_20140804.shp",proj4string=GDA94.56)
+  cor.cha <- readShapePoly(paste0(computer,"/GIS_data/Wyong/Wyong Shire Council Data/Species/Corunastylis_charmhaven_WSC_20140804.shp"),proj4string=GDA94.56)
   cor.cha.mask <- shp2raster(gBuffer(cor.cha,width=50),wyong.mask,value=1,bkg=NA,label="Corunastylis_charmhaven_WSC_20140804",save=F)
 
 # Corunastylis_insignis
-  cor.ins <- readShapePoly("//654cw-20990/Amy/GIS_data/Wyong/Wyong Shire Council Data/Species/Corunastylis_insignis_WSC_20140804.shp",proj4string=GDA94.56)
+  cor.ins <- readShapePoly(paste0(computer,"/GIS_data/Wyong/Wyong Shire Council Data/Species/Corunastylis_insignis_WSC_20140804.shp"),proj4string=GDA94.56)
   cor.ins.mask <- shp2raster(gBuffer(cor.ins,width=50),wyong.mask,value=1,bkg=NA,label="Corunastylis_insignis_WSC_20140804",save=F)
 
 # Thelymitra adorata
-  the.ado <- readShapePoly("//654cw-20990/Amy/GIS_data/Wyong/Wyong Shire Council Data/Species/Thelymitra_adorata_WSC_20140804.shp",proj4string=GDA94.56)
+  the.ado <- readShapePoly(paste0(computer,"/GIS_data/Wyong/Wyong Shire Council Data/Species/Thelymitra_adorata_WSC_20140804.shp"),proj4string=GDA94.56)
   the.ado.mask <- shp2raster(gBuffer(the.ado,width=50),wyong.mask,value=1,bkg=NA,label="Thelymitra_adorata_WSC_20140804",save=F)
 
 # wyong mask with lakes removed
