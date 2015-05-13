@@ -40,7 +40,8 @@ Create a clippling mask that is used to cut the MaxEnt output for use in Zonatio
   HV.shp <- GH.shp[grepl("NEWCASTLE|PORT STEPHENS|MAITLAND|CESSNOCK|LAKE MACQUARIE|WYONG|GOSFORD",GH.shp$lganame),]
 #     HV.shp <- spTransform(HV.shp,GDA94.56)
 
-  GH.mask <- mask(crop(GH_PM.mask,GH.shp),GH.shp,filename=paste0(computer,"/GIS_data/Hunter/mask files/GH.mask.tif"),overwrite=T)
+  GH.mask <- mask(crop(GH_PM.mask,GH.shp),GH.shp)
+    GH.mask <- extend(GH.mask,extent(197142,481642,6282948,6521148),filename=paste0(computer,"/GIS_data/Hunter/mask files/GH.mask.tif"),overwrite=T)
   
 # LH administrative boundary
   LH.shp <- readShapePoly(paste0(computer,"/GIS_data/Hunter/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/5_LGAs_StudyArea.shp"), proj4=GDA94.56)
