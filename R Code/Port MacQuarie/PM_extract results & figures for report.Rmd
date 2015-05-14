@@ -600,23 +600,6 @@ tiff(paste0(output_path,'PM_sdm_v2.tif'), width = 15, height = 25, units="cm",re
 
 dev.off()
 
-tiff('PM_remnant veg.tif', width = 20, height = 10, units="cm", compression='lzw', res=300,bg="transparent",pointsize=12)
-  par(mfrow=c(1,2), mar=c(1,1,1,1), oma=c(0,0,0,0))
-  plot(GH_PM.clipping.mask,col="darkgreen",legend=F,box=F,axes=F,zlim=c(0,1000))
-    plot(GH_PM.shp,add=T,border="grey20",lwd=1)
-    plot(PM.shp,add=T,lwd=2)
-    mtext("A",side=3,line=0,font=2,adj=0)
-    mtext("Greater Hunter",side=3,line=0,font=1,adj=0.15,cex=0.8)
-    scalebar(50000,xy = c(197142,6282948),type = "line",label=c("50 km"),cex=0.75)
-  
-  plot(PM.mask,col=map.background,axes=F,legend=F,box=F)
-    plot(PM.clipping.mask,col="darkgreen",add=T,legend=F)
-    plot(PM.shp,add=T)
-    mtext("B",side=3,line=0,font=2,adj=0)
-    mtext("Port MacQuarie-Hastings",side=3,line=0,font=1,adj=0.15,cex=0.8)
-    scalebar(10000,xy = c(332142.2,6303031),type = "line",label=c("10 km"),cex=0.75)
-dev.off()
-
 ```
 
 
