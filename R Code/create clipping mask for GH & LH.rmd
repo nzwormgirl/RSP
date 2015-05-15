@@ -109,6 +109,52 @@ PM.veg <- mask(crop(GH_PM.veg,PM.mask),PM.mask,filename=paste0(computer,"/GIS_da
 
 ```
 
+
+```{r test clipping masks}
+
+# LH_LZN_Existing_Urban_Areas_OEH_Revised
+  LH.existing.urban <- readShapePoly(paste0(computer,"/GIS_data/Hunter/All data from harddrive/From OEH/Raw data for RGP report/LH_LZN_Existing_Urban_Areas_OEH_Revised.shp"))
+
+  LH.exurban.mask <- shp2raster(LH.existing.urban,LH.mask,value=0,bkg=1,label="LH.urban.mask",save=F)
+    LH.exurban.mask[LH.exurban.mask==0] <- NA
+
+# remove lakes from the urban layer
+    LH.lakes.mask <- shp2raster(lakes,LH.mask,value=0,bkg=1,label="lakes",save=F)
+    LH.lakes.mask[LH.lakes.mask==0]<-NA
+
+LH.exurban.mask <- min(LH.exurban.mask,LH.lakes.mask)
+
+# Greater Hunter & Port Mac clipping mask
+  GH_PM.veg <- raster(paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/environmental_data/standardised_rasters/final_vegetation.asc"),crs=GDA94.56)
+  GH_PM.veg[GH_PM.veg==0] <- NA  
+  GH_PM.veg[!is.na(GH_PM.veg)] <- 1
+
+# LH.exurban.mask[!is.na(LH.exurban.mask)] <- 0
+LH.mask[!is.na(LH.mask)] <- 0
+
+GH_PM.clipping.mask <- GH_PM.veg * merge(LH.exurban.mask,merge(GH_PM.veg * extend(LH.mask,GH_PM.veg),GH_PM.veg)) 
+GH_PM.clipping.mask[GH_PM.clipping.mask==0] <- NA
+ writeRaster(GH_PM.clipping.mask,filename=paste0(computer,"/GIS_data/Hunter/mask files/GH_PM.clipping.mask_v2.tif"),overwrite=T)
+
+# Greater Hunter clipping mask
+  GH.veg <- mask(crop(GH_PM.clipping.mask,GH.mask),GH.mask)
+  writeRaster(GH.veg,filename=paste0(computer,"/GIS_data/Hunter/mask files/GH.clipping.mask_v2.tif"),overwrite=T)
+
+# LH clipping mask
+  LH.veg <- mask(crop(GH_PM.clipping.mask,LH.mask),LH.exurban.mask,filename=paste0(computer,"/GIS_data/Hunter/mask files/LH.clipping.mask_v2.tif"),overwrite=T)
+
+# UH clipping mask
+UH.veg <- mask(crop(GH_PM.clipping.mask,UH.mask),UH.mask,filename=paste0(computer,"/GIS_data/Hunter/mask files/UH_HCCREMS.clipping.mask_v2.tif"),overwrite=T)
+
+# HV clipping mask
+HV.veg <- mask(crop(GH_PM.clipping.mask,HV.mask),HV.mask,filename=paste0(computer,"/GIS_data/Hunter/mask files/HV.clipping.mask_v2.tif"),overwrite=T)
+
+# PM clipping mask
+PM.veg <- mask(crop(GH_PM.clipping.mask,PM.mask),PM.mask,filename=paste0(computer,"/GIS_data/Hunter/mask files/PM.clipping.mask_v2.tif"),overwrite=T)
+
+```
+
+
 ```{r wyong}
 # wyong clipping mask
 wyong.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/wyong.mask.tif"))
