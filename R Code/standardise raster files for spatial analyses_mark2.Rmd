@@ -10,7 +10,8 @@ When you click the **Knit HTML** button a web page will be generated that includ
 rm(list=ls())
 start.time <- proc.time()
 
-working.directory <- "~/GIS_data/Hunter/Maxent_files/ghm.pm/environmental_data"
+computer <- "H:/UM backup"
+working.directory <- paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/environmental_data")
 
  setwd(working.directory)
 
@@ -25,7 +26,7 @@ packages(rgdal)
 setwd(working.directory)
 # open environmental rasters
   # region mask
-  region.mask <- raster("~/GIS_data/Hunter/mask files/GH_PM.mask.tif")
+  region.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/GH_PM.mask.tif"))
 
   # vegetation
   veg.rasters <- stack(dir("vegetation", pattern="*.tif$", recursive=F, full.names=T))
