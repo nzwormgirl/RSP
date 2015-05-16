@@ -1,0 +1,435 @@
+Social ecological values: Replacement cost analysis
+========================================================
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring web pages (click the **MD** toolbar button for help on Markdown).
+
+When you click the **Knit HTML** button a web page will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r ImportData}
+rm(list=ls())
+library(raster)
+library(maptools)
+library(rgdal)
+library(ggplot2)
+library(ggmap)
+library(RColorBrewer)
+library(reshape)
+
+  output.directory <- "C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/social ecological values/output_files"
+
+setwd(output.directory)
+
+scenarios <- c("optimal_conservation7", "optimal_social", "optimal_development","conservation7_social", "conservation7_social.costs", "conservation7_development.costs", "conservation7_development.mask", "conservation7_social.development.costs","conservation7_social.development.mask", "optimal_development_inverse","old.inverse.development")
+
+ zonation_rasters <- stack(paste0("output_",scenarios,".rank.asc"))
+
+for(i in seq(scenarios)) {
+ assign(paste0(scenarios[i], ".curves"), read.csv(paste0("output_",scenarios[i],".curves.csv")) )
+  }
+
+#recalculate mean & average curve values to include only biodiversity features
+conservation7_social.curves$ave_prop_rem <- round(rowMeans(conservation7_social.curves[,8:14]),3)
+conservation7_social.curves$min_prop_rem <- apply(conservation7_social.curves[,8:14], 1, min)
+
+conservation7_social.development.costs.curves$ave_prop_rem <- round(rowMeans(conservation7_social.development.costs.curves[,8:14]),3)
+conservation7_social.development.costs.curves$min_prop_rem <- apply(conservation7_social.development.costs.curves[,8:14], 1, min)
+
+conservation7_social.development.mask.curves$ave_prop_rem <- round(rowMeans(conservation7_social.development.mask.curves[,8:14]),3)
+conservation7_social.development.mask.curves$min_prop_rem <- apply(conservation7_social.development.mask.curves[,8:14], 1, min)
+
+optimal_social.curves$ave_prop_rem <- round(rowMeans(optimal_social.curves[,11:17]),3)
+optimal_social.curves$min_prop_rem <- apply(optimal_social.curves[,11:17], 1, min)
+
+optimal_development.curves$ave_prop_rem <- round(rowMeans(optimal_development.curves[,13:19]),3)
+optimal_development.curves$min_prop_rem <- apply(optimal_development.curves[,13:19], 1, min)
+
+optimal_development_inverse.curves$ave_prop_rem <- round(rowMeans(optimal_development_inverse.curves[,13:19]),3)
+optimal_development_inverse.curves$min_prop_rem <- apply(optimal_development_inverse.curves[,13:19], 1, min)
+
+old.inverse.development.curves$ave_prop_rem <- round(rowMeans(old.inverse.development.curves[,13:19]),3)
+old.inverse.development.curves$min_prop_rem <- apply(old.inverse.development.curves[,13:19], 1, min)
+
+curves <- list(optimal_conservation7.curves,optimal_social.curves,optimal_development.curves,conservation7_social.curves,conservation7_social.costs.curves,conservation7_development.costs.curves,conservation7_development.mask.curves, conservation7_social.development.costs.curves,conservation7_social.development.mask.curves,optimal_development_inverse.curves,old.inverse.development.curves )
+
+```
+
+```{r generate_cost_layers}
+development.costs_100 <- (zonation_rasters[[3]]+0.01)*100
+social.costs_100 <- (1-zonation_rasters[[2]]+0.01)*100
+development.mask <- zonation_rasters[[3]]
+  development.mask[development.mask<0.7] <- NA
+  development.mask[!is.na(development.mask)] <- 1
+
+inverse.development <- (1-zonation_rasters[[3]])+7.99e-05
+
+writeRaster(development.costs_100, "C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/social ecological values/development.costs_100.asc", overwrite=T)
+writeRaster(social.costs_100, "C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/social ecological values/social.costs_100.asc", overwrite=T)
+writeRaster(development.mask, "C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/social ecological values/development.mask.asc", overwrite=T)
+writeRaster(inverse.development, "C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/social ecological values/inverse.development.asc", overwrite=T)
+
+
+```
+
+```{r conflict_overlays}
+
+conservation.high <- zonation_rasters[[1]]
+  conservation.high[conservation.high < 0.7] <- NA
+conservation.low <- zonation_rasters[[1]]
+  conservation.low[conservation.low > 0.3] <- NA
+writeRaster(conservation.high, "conservation_high.asc", overwrite=T)
+writeRaster(conservation.low, "conservation_low.asc", overwrite=T)
+
+social.high <- zonation_rasters[[2]]
+  social.high[social.high < 0.7] <- NA
+social.low <- zonation_rasters[[2]]
+  social.low[social.low > 0.3] <- NA
+social.costs <- (1-zonation_rasters[[2]]) + 1
+ 
+writeRaster(social.high, "social_high.asc", overwrite=T)
+writeRaster(social.low, "social_low.asc", overwrite=T)
+writeRaster(social.costs, "C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/social ecological values/social.costs_100.asc", overwrite=T)
+
+development.high <- zonation_rasters[[3]]
+  development.high[development.high < 0.7] <- NA
+development.low <- zonation_rasters[[3]]
+  development.low[development.low > 0.3] <- NA
+development.mask <- zonation_rasters[[3]]
+  development.mask[development.mask >= 0.7] <- 1
+  development.mask[development.mask < 0.7] <- 2
+development.costs <- zonation_rasters[[3]] + 1
+writeRaster(development.high, "development_high.asc", overwrite=T)
+writeRaster(development.low, "development_low.asc", overwrite=T)
+writeRaster(development.mask, "C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/social ecological values/development.mask.asc", overwrite=T)
+writeRaster(development.costs, "C:/Users/awhitehead/Documents/GIS_data/Hunter/zonation/social ecological values/development.costs_100.asc", overwrite=T)
+
+# win-win
+conH_socH <- overlay(conservation.high,social.high,fun=mean)
+  conH_socH[!is.na(conH_socH)] <- 5
+
+#  conflicts
+conH_devH <- overlay(conservation.high,development.high,fun=mean)
+  conH_devH[!is.na(conH_devH)] <- 1
+socH_devH <- overlay(social.high,development.high,fun=mean)
+  socH_devH[!is.na(socH_devH)] <- 1
+
+# conservation priorities
+conH_devL <- overlay(conservation.high,development.low,fun=mean)
+  conH_devL[!is.na(conH_devL)] <- 4
+conH_socL <- overlay(conservation.high,social.low,fun=mean)
+  conH_socL[!is.na(conH_socL)] <- 4
+
+# development priorities
+conL_devH <- overlay(conservation.low,development.high,fun=mean)
+  conL_devH[!is.na(conL_devH)] <- 2
+socL_devH <- overlay(social.low,development.high,fun=mean)
+  socL_devH[!is.na(socL_devH)] <- 2
+
+#social priorities
+conL_socH <- overlay(conservation.low,social.high,fun=mean)
+  conL_socH[!is.na(conL_socH)] <- 3 
+devL_socH <- overlay(development.low,social.high,fun=mean)
+  devL_socH[!is.na(devL_socH)] <- 3
+
+# effects of overlay thresholds
+priority.rankings <- d(optimal_conservation7=rep(NA,50112),optimal_social=NA,optimal_development=NA,conservation7_social=NA,conservation7_social.costs=NA,conservation7_development.costs=NA,conservation7_development.mask=NA, conservation7_social.development.costs=NA)
+
+for (i in seq(scenarios)){
+  priority.rankings[,i] <- getValues(zonation_rasters[[i]])
+  }
+
+priority.rankings <- priority.rankings[complete.cases(priority.rankings),]
+
+plot(optimal_conservation7~optimal_development, data=priority.rankings,col=ifelse(priority.rankings$conservation7_development.costs>0.7,"green",ifelse(priority.rankings$conservation7_development.costs<0.3,"red","black")))
+
+plot(optimal_conservation7~optimal_social, data=priority.rankings,col=ifelse(priority.rankings$conservation7_social.costs>0.7,"green",ifelse(priority.rankings$conservation7_social.costs<0.3,"red","black")))
+
+overlays <- d(thresholds=seq(0.5,1,by=0.01), con.soc=NA, con.dev=NA, soc.dev=NA)
+
+for(i in seq(overlays$thresholds)){
+  overlays$con.soc[i] <- nrow(priority.rankings[(priority.rankings$optimal_conservation7 > overlays$thresholds[i] & priority.rankings$optimal_social > overlays$thresholds[i]),]) / nrow(priority.rankings[(priority.rankings$optimal_conservation7 > overlays$thresholds[i] | priority.rankings$optimal_social > overlays$thresholds[i]),])
+  overlays$con.dev[i] <- nrow(priority.rankings[(priority.rankings$optimal_conservation7 > overlays$thresholds[i] & priority.rankings$optimal_development > overlays$thresholds[i]),]) / nrow(priority.rankings[(priority.rankings$optimal_conservation7 > overlays$thresholds[i] | priority.rankings$optimal_development > overlays$thresholds[i]),])
+  overlays$soc.dev[i] <- nrow(priority.rankings[(priority.rankings$optimal_development > overlays$thresholds[i] & priority.rankings$optimal_social > overlays$thresholds[i]),]) / nrow(priority.rankings[(priority.rankings$optimal_development > overlays$thresholds[i] | priority.rankings$optimal_social > overlays$thresholds[i]),])
+}
+
+tiff("figures for ms/overlay_thresholds.tif",res=300,width=15,height=10,units="cm",pointsize=12, compression="lzw")
+  par(mfrow=c(1,1), mar=c(4,4,1,1.25))
+  plot(con.soc~thresholds, data=overlays, type="l", xlab="Top fraction of the landscape", ylab="Proportion of overlap", bty="l", col=1, las=1, xaxs="i",yaxs="i",ylim=c(0,0.5), xaxt="n")
+  axis(1,at=seq(0.5:1.0,by=0.1), label=c(c("0.5","0.4","0.3","0.2","0.1","0.0")))
+    lines(con.dev~thresholds, data=overlays, lty=2, col=1)
+    lines(soc.dev~thresholds, data=overlays, lty=3, col=1)
+  lines(c(0.7,0.7),c(0,0.31), col="grey")
+  legend("topright",c("A. Biological values, B.Social values","A. Biological values, C. Development preferences","B. Social values, C. Development preferences"), lty=c(1,2,3), bty="n", col=1, cex=0.7)
+dev.off()
+
+writeRaster(conservation.high_development.high, "conservation.high_development.high.asc", overwrite=T)
+conH.devH <- raster("conservation.high_development.high.asc")
+```
+
+```{r scenario.comparison_overlays}
+conservation.high[!is.na(conservation.high)] <- 1
+
+output <- d(scenarios=scenarios, no.cells=NA, pc.change=NA)
+
+for (i in seq(scenarios)){
+  r <- zonation_rasters[[i]]
+  if(scenarios[i]=="optimal_development") {r[r>=0.3] <- NA } else  r[r<0.7] <- NA 
+  r[!is.na(r)] <- 1
+assign(paste0("high_",scenarios[i]),r)
+output$no.cells[i] <- sum(getValues(overlay(conservation.high,r,fun=mean)),na.rm=T)  
+  output$pc.change[i] <- (output$no.cells[i] - output$no.cells[1])/output$no.cells[1]
+}
+
+```
+
+
+```{r ReplacementCostPlots}
+
+colours <- brewer.pal(5,"Spectral")
+#   colours[3] <- "#267300"
+colour.scenarios <- d(scenarios, hex=NA, line=1, line.width=1)
+  colour.scenarios[1,c("hex")] <- c("black"); colour.scenarios[1,c("line","line.width")] <- c(1,1.5)
+  colour.scenarios[2,c("hex")] <- c("grey30"); colour.scenarios[2,c("line","line.width")] <- c(1,1.5)
+  colour.scenarios[3,c("hex")] <- c("grey40"); colour.scenarios[3,c("line","line.width")] <- c(1,1.5)
+  colour.scenarios[4,c("hex")] <- c("grey25"); colour.scenarios[4,c("line","line.width")] <- c(2,1.5)
+  colour.scenarios$hex[5] <- c("grey25"); colour.scenarios[5,c("line","line.width")] <- c(2,1.5)            
+  colour.scenarios$hex[6] <- c("grey60"); colour.scenarios[6,c("line","line.width")] <- c(3,1.5)
+  colour.scenarios$hex[7] <- c("grey60"); colour.scenarios[7,c("line","line.width")] <- c(2,1.5) 
+  colour.scenarios[8,c("hex")] <- c("grey60"); colour.scenarios[8,c("line","line.width")] <- c(3,1.5)
+  colour.scenarios[9,c("hex")] <- c("grey60"); colour.scenarios[9,c("line","line.width")] <- c(2,1.5)
+  colour.scenarios$hex[10] <- colours[2]
+  colour.scenarios[11,c("hex")] <- c("grey60"); colour.scenarios[11,c("line","line.width")] <- c(1,1.5)
+  
+  
+# curve.plot <- function(i){ 
+#   tiff(filename=paste0(scenarios[i],"_replacement.cost.curves.tif"),width=7.5,height=7.5,units="cm",pointsize=10,res=300,compression="lzw")
+#    par(mar=c(2.5,2.5,0.5,0.5), oma=c(0,0,0,0))
+#   plot(ave_prop_rem ~ Prop_landscape_lost, data=curves[[1]], type="l", xlab="", ylab="", lwd=1,col="grey", bty="l", las=1)
+#   lines(min_prop_rem ~ Prop_landscape_lost, data=curves[[1]], lty=2,lwd=1,col="grey")
+#   lines(ave_prop_rem ~ Prop_landscape_lost, data=curves[[i]], lty=1,lwd=1)
+#   lines(min_prop_rem ~ Prop_landscape_lost, data=curves[[i]], lty=2,lwd=1)
+#   dev.off()
+#   }
+#   
+# lapply(1:11,curve.plot)
+# 
+# inverse.landscape <- 1-curves[[3]]$Prop_landscape_lost
+
+plot.curves <- function(plot.scenarios,y.variable,labels="", y.label="", x.label="", legend=F, plot.label="", line.limit){
+  input <- curves[[1]]
+  plot(input[,y.variable] ~ Prop_landscape_lost, data=input, type="n", xlab=x.label, ylab=y.label, bty="l", las=1,xaxs = "i", yaxs="i",xaxt = "n",xlim=c(0,1))
+lines(c(0.7,0.7),c(0,line.limit),col="grey85")
+axis(1,at=c(0,0.2,0.4,0.6,0.8,1), label=c("1.0","0.8","0.6","0.4","0.2","0.0")) 
+
+    for(i in plot.scenarios){
+    input <- curves[[i]]
+              lines(input[,y.variable] ~ Prop_landscape_lost, data=input, lty=colour.scenarios$line[i], lwd=colour.scenarios$line.width[i], col=colour.scenarios$hex[i])
+              }
+  input <- curves[[1]]  
+  lines(input[,y.variable] ~ Prop_landscape_lost, data=input, lty=colour.scenarios$line[1], lwd=colour.scenarios$line.width[1], col=colour.scenarios$hex[1])
+    
+ if(legend==TRUE) legend("bottomleft", legend=labels, col=colour.scenarios$hex[plot.scenarios], lty=colour.scenarios$line[plot.scenarios], lwd=colour.scenarios$line.width[plot.scenarios],bty="n",cex=0.75)
+  mtext(plot.label, side=3, line=0.5,cex=1,adj=0)
+}
+              
+tiff(filename="replacement.cost.curves.tif",width=15,height=20,units="cm",pointsize=12,res=300,compression="lzw")
+
+par(mfrow=c(2,1), mar=c(4.1,4,1.5,1)) 
+ plot.curves(plot.scenarios=c(1,2,11,4,8,9),y.variable="ave_prop_rem",labels=c("A. Biological values","B. Social values","C. Development preferences","D. Biological & social","E. Biological, social & development costs","F. Biological, social & development mask"),y.label="Mean proportion of distributions protected",x.label="",legend=TRUE, plot.label="a)", line.limit=0.396)
+
+plot.curves(plot.scenarios=c(1,2,11,4,8,9),y.variable="min_prop_rem",y.label="Minimum proportion of distributions protected",x.label="Proportion of landscape protected",legend=FALSE, plot.label="b)", line.limit=0.322)
+  
+dev.off()
+
+
+tiff(filename="replacement.cost.curves_supplementary.tif",width=15,height=20,units="cm",pointsize=12,res=300,compression="lzw")
+
+par(mfrow=c(2,1), mar=c(4.1,4,1.5,1)) 
+ plot.curves(plot.scenarios=c(1,5,6,7),y.variable="ave_prop_rem",labels=c("A. Biological values","G. Biological & inverse social costs","H. Biological & development costs","I. Biological & development mask"),y.label="Mean proportion of distributions protected",x.label="",legend=TRUE, plot.label="a)", line.limit=0.396)
+
+plot.curves(plot.scenarios=c(1,5,6,7),y.variable="min_prop_rem",y.label="Minimum proportion of distributions protected",x.label="Proportion of landscape protected",legend=FALSE, plot.label="b)", line.limit=0.322)
+    
+dev.off()
+
+par(mfrow=c(2,1), mar=c(4.1,4,1.5,1)) 
+ plot.curves(plot.scenarios=c(1:11),y.variable="ave_prop_rem",labels=scenarios,y.label="Mean proportion of distributions protected",x.label="",legend=TRUE, plot.label="a)", line.limit=0.396)
+
+plot.curves(plot.scenarios=c(1:11),y.variable="min_prop_rem",y.label="Minimum proportion of distributions protected",x.label="Proportion of landscape protected",legend=FALSE, plot.label="b)", line.limit=0.322)
+
+
+```
+
+```{r plot for Chris Ives}
+
+tiff(filename="replacement.cost.curves_Ives.tif",width=20,height=20,units="cm",pointsize=12,res=300,compression="lzw")
+
+par(mfrow=c(1,1), mar=c(4.1,4,1.5,1)) 
+ plot.curves(plot.scenarios=c(1,7),y.variable="ave_prop_rem",labels=c("A. Biological values","F. Biological, social & development mask"),y.label="Proportion of distributions protected",x.label="Proportion of landscape protected",legend=FALSE, plot.label="", line.limit=0)
+
+input <- curves[[1]]
+  plot(input[,"ave_prop_rem"] ~ Prop_landscape_lost, data=input, type="n", xlab="Proportion of landscape protected", ylab="Minimum proportion of distributions protected", bty="l", las=1,xaxs = "i", yaxs="i",xaxt = "n",xlim=c(0,1))
+
+axis(1,at=c(0,0.2,0.4,0.6,0.8,1), label=c("1.0","0.8","0.6","0.4","0.2","0.0")) 
+
+    for(i in c(1,7)){
+    input <- curves[[i]]
+#       lines(input[,"ave_prop_rem"] ~ Prop_landscape_lost, data=input, lty=1, lwd=colour.scenarios$line.width[i], col=colour.scenarios$hex[i])
+      lines(input[,"min_prop_rem"] ~ Prop_landscape_lost, data=input, lty=1, lwd=colour.scenarios$line.width[i], col=colour.scenarios$hex[i])
+              }
+dev.off()
+
+
+```
+
+
+```{r loss_by_species}
+# calculate how much each species is losing under each scenario
+
+landscape.lost <- 0.7009
+species.loss <- d(sp1=NULL,sp2=NULL,sp3=NULL,sp4=NULL,sp5=NULL,sp6=NULL,sp7=NULL,scenario=NULL)
+
+
+for(i in seq(scenarios)){
+  input <- curves[[i]]
+  output <- input[input$Prop_landscape_lost==landscape.lost,c("sp1","sp2","sp3","sp4","sp5","sp6","sp7")]
+  output$scenario <- scenarios[i]
+  species.loss <- rbind(species.loss,output)
+  
+}
+colnames(species.loss) <- c("Powerful owl","Masked owl","Sooty owl","Spotted quoll","YB glider","Squirrel glider","Koala","scenario")
+
+species.diff <- d(species=names(species.loss)[1:7],diff=NA)
+  
+for(i in 1:7){
+  species.diff$diff[i] <- species.loss[species.loss$scenario=="optimal_conservation7",i] - species.loss[species.loss$scenario=="optimal_social",i]
+  }
+species.diff <- species.diff[order(species.diff$diff, decreasing=T),]
+
+
+species.loss <- melt(species.loss,id="scenario")
+  species.loss$species.order <- factor(species.loss$species, as.character(species.diff$species))
+  colnames(species.loss)[2] <- "species"
+
+
+
+
+
+ggplot(data=species.loss[species.loss$scenario!="optimal_development" & species.loss$scenario!="conservation7_development.mask" & species.loss$scenario!="conservation7_social.costs" & species.loss$scenario!="conservation7_development.costs",], aes(x=reorder(species,value,function(x) -mean(x)), y=value, fill=reorder(scenario,value, function(x)-mean(x)))) + geom_bar(stat='identity',position=position_dodge()) + xlab("") + ylab("% of species range protected") + scale_fill_brewer(name="Scenario", palette="Set2") 
+
+ggplot(data=species.loss[species.loss$scenario!="optimal_development",], aes(x=reorder(species,value,function(x) -mean(x)), y=value, fill=reorder(scenario,value, function(x)-mean(x)))) + geom_bar(stat='identity',position=position_dodge()) + xlab("") + ylab("% of species range protected") + scale_fill_brewer(name="Scenario", palette="Set2")
+
+ggplot(data=species.loss[species.loss$scenario=="optimal_conservation7" | species.loss$scenario=="optimal_social" |  species.loss$scenario=="conservation7_social.development.mask",], aes(x=species.order, y=value, fill=reorder(scenario,value, function(x)-mean(x)))) + geom_bar(stat='identity',position=position_dodge()) + xlab("") + ylab("% of species range protected") + scale_fill_brewer(name="Scenario", palette="Set2")
+
+```
+
+```{r ReplacementCostValues}
+
+# thresholds <- c(round(nrow(optimal_conservation.curves)*0.3,0),round(nrow(optimal_conservation.curves)*0.7,0))
+
+rc.values <- d(ave_prop_rem=NULL,min_prop_rem=NULL,scenario=NULL,threshold=NULL)
+
+extract.rc.values <- function(input, label){
+  thresholds <- c(round(nrow(input)*0.3,0),round(nrow(input)*0.7,0))
+  output <-  rbind( input[thresholds[1],c("ave_prop_rem","min_prop_rem")],input[thresholds[2],c("ave_prop_rem","min_prop_rem")])
+  output$scenario <- label
+  output$threshold <- c(0.3,0.7)
+  return(output)
+  }
+
+for(i in seq(scenarios)){
+  output <- extract.rc.values(curves[[i]],scenarios[i])
+  
+  rc.values <- rbind(rc.values,output)
+}
+
+  
+  extract.rc.changes <- function (optimal.scenario,scenario, threshold) {
+    output <- d(scenario=scenario,threshold=threshold,ave.change=NA,min.change=NA)
+    output$ave.change<- rc.values$ave_prop_rem[(rc.values$scenario==scenario & rc.values$threshold==threshold)] - rc.values$ave_prop_rem[(rc.values$scenario==optimal.scenario & rc.values$threshold==threshold)]
+    output$min.change <- rc.values$min_prop_rem[(rc.values$scenario==scenario & rc.values$threshold==threshold)] - rc.values$min_prop_rem[(rc.values$scenario==optimal.scenario & rc.values$threshold==threshold)]
+    return(output)    
+  }
+ 
+conservation.loss <- rbind(extract.rc.changes("optimal_conservation7","conservation_social",0.3),extract.rc.changes("optimal_conservation7","conservation_social",0.7),extract.rc.changes("optimal_conservation7","conservation7_social.development.costs",0.3),extract.rc.changes("optimal_conservation7","conservation_social.development.cost7s",0.7))
+
+development.loss <- rbind(extract.rc.changes("optimal_development","development_conservation.costs",0.3),extract.rc.changes("optimal_development","development_conservation.costs",0.7))
+
+```
+
+
+```{r RGB_overlays}
+
+test <- brick(conservation,social,development)
+
+plotRGB(test,r=2,g=1,b=3)
+
+
+
+
+```
+
+
+```{r ggplot2_mapping}
+
+region.outline.data <- fortify(region.outline)
+
+con.dev <- merge(conH_devH, conH_devL, conL_devH)
+con.soc <- merge(conH_socH, conH_socL, conL_socH)
+soc.dev <- merge(socH_devH, devL_socH, socL_devH)
+
+writeRaster(con.dev, "conservation.development.tif", overwrite=T)
+writeRaster(soc.dev, "social.development.tif", overwrite=T)
+writeRaster(con.soc, "conservation.social.tif", overwrite=T)
+
+overlay.list <- stack(con.dev, con.soc, soc.dev)
+
+names.overlay.list <- c("con.dev", "con.soc", "soc.dev")
+
+for (i in seq(names.overlay.list)){
+  val <- getValues(overlay.list[[i]])
+  xy <- as.data.frame(xyFromCell(overlay.list[[i]],1:ncell(overlay.list[[i]])))
+  assign(paste0("xy.",names.overlay.list[i]),cbind(xy,val))
+  
+  }
+
+
+
+con.dev.map <- ggplot(na.omit(xy.con.dev)) + geom_raster(aes(x=x, y=y, fill=val)) + coord_equal() + geom_path(aes(x=long, y=lat, group=group),data=region.outline.data)
+
+con.dev.map <- ggplot(na.omit(xy.conH_devH)) + geom_raster(aes(x=x, y=y, fill=val)) + coord_equal() + geom_path(aes(x=long, y=lat, group=group),data=region.outline.data)
+
+con.soc.map <- ggplot(na.omit(xy.con.soc)) + geom_raster(aes(x=x, y=y, fill=val)) + coord_equal() + geom_path(aes(x=long, y=lat, group=group),data=region.outline.data)
+
+soc.dev.map <- ggplot(na.omit(xy.soc.dev)) + geom_raster(aes(x=x, y=y, fill=val)) + coord_equal() + geom_path(aes(x=long, y=lat, group=group),data=region.outline.data)
+
+map <- ggplot(aes(x=long, y=lat, group=group),data=c(region.outline.data,na.omit(xy.con.dev)) + geom_path() + geom_raster(na.omit(xy.con.dev), aes(x=x, y=y, fill=val))
+
+
+```
+
+```{r what_the_fuck}
+development.high <- zonation_rasters[[3]]
+  development.high[development.high < 0.7] <- NA
+development.high.inverse <- zonation_rasters[[10]]
+  development.high.inverse[development.high.inverse > 0.3] <- NA
+              
+par(mfrow=c(2,1))
+plot(development.high)
+plot(development.high.inverse)
+              
+species.files <- c("../Ninox_strenua.asc", "../Tyto_novaehollandiae.asc","../Tyto_tenebricosa.asc","../Dasyurus_maculatus.asc","../Petaurus_australis.asc","../Petaurus_norfolcensis.asc","../Phascolarctos_cinereus.asc","../inverse_pos_ag_dev.asc","../inverse_pos_res_dev.asc","../inverse_pos_ind_dev.asc","../inverse_pos_tour_dev.asc","../inverse_pos_trans_dev.asc","../pos_ag_dev.asc","../pos_res_dev.asc","../pos_ind_dev.asc","../pos_tour_dev.asc","../pos_trans_dev.asc")
+
+species.rasters <- lapply(species.files,raster)
+              
+species.inverse <- mapply(mask,species.rasters,development.high.inverse)
+species.normal <- mapply(mask,species.rasters,development.high)              
+
+top.30 <- d(species=species.files,normal.prop=NA,inverse.prop=NA)
+for(i in seq(species.files)){
+  top.30$normal.prop[i] <- sum(getValues(species.normal[[i]]),na.rm=T) / sum(getValues(species.rasters[[i]]),na.rm=T)
+  top.30$inverse.prop[i] <- sum(getValues(species.inverse[[i]]),na.rm=T) / sum(getValues(species.rasters[[i]]),na.rm=T)
+  
+}
+              
+
+            
+```              
