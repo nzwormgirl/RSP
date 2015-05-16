@@ -1,0 +1,135 @@
+Change all Maxent files from ascii to tif
+==============================================
+
+
+```{r convert_data}
+rm(list=ls())
+library(raster)
+
+# computer <- "~" #My computer
+computer <- "Z:/Amy" #Super computer
+# computer <- "//654cw-20990/Amy"
+
+set <- "all_variables"
+
+maxent.dir <- paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/",set,"/output/")
+GH_PM.zonation.dir <- paste0(computer,"/GIS_data/Hunter/zonation/GH_PM/")
+
+GH_PM.clipping.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/GH_PM.clipping.mask_v2.tif"))
+GH_PM.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/GH_PM.mask.tif"))
+
+# GH.clipping.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/GH.clipping.mask.tif"))
+# GH.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/GH.mask.tif"))
+  
+convert.to.tif <- function (asc.file) {
+    r <- raster(asc.file)
+    species <- strsplit(names(r),"_avg")
+    
+    r <- round(mask(crop(r,GH_PM.mask),GH_PM.mask)*1000,0)
+    
+    if(length(species[grepl("pre1750",species)])==1) {
+      writeRaster(r,paste0(GH_PM.zonation.dir,"/pre1750/",as.character(species),"_SDM.GH_PM.tif"), overwrite=T,datatype="INT2U")
+      } else {
+        r <- mask(r,GH_PM.clipping.mask)
+        writeRaster(r,paste0(GH_PM.zonation.dir,"/extant/",as.character(species),"_SDM.GH_PM.tif"), overwrite=T,datatype="INT2U")
+      }  
+    cat(" converted",as.character(species), "to tif","\n")
+    #file.remove(paste0(maxent.dir,asc.file))
+  }
+
+taxa <- c("birds","mammals","reptiles","plants","amphibians")
+
+poorly.modelled <- read.csv(paste0(maxent.dir,"DotE report - poorly modelled species.csv"))
+
+```
+
+```{r presence absence raster}
+presence.absence.raster <- function (mask.raster,species.data,raster.label="",region) {
+    #set the cells that contain points to 1
+  speciesRaster <- rasterize(species.data,mask.raster,field=1)
+  if(cellStats(speciesRaster,max)>0){  
+    speciesRaster <- mask(merge(speciesRaster,mask.raster),mask.raster)
+      #label the raster
+      names(speciesRaster) <- raster.label
+    }
+  
+  if(cellStats(speciesRaster,max)>0){
+    writeRaster(speciesRaster,paste0(computer,"/GIS_data/Hunter/zonation/",region,"/extant/",raster.label,"_SSI.GH_PM.tif"), overwrite=T)
+      cat("Converted",raster.label,"to raster","\n")
+  }
+  gc()
+}
+
+
+
+```
+
+
+```{r species}
+for(i in seq(taxa)){
+  cat("Converting",taxa[i],"\n")
+  maxentResults <- read.csv(paste0(maxent.dir,taxa[i],"/pre1750v2/CV/maxentResults.csv"))
+    maxentResults <- maxentResults[grepl("average",maxentResults$Species),]
+    good.models <- maxentResults$Species[maxentResults$Test.AUC>=0.7]
+      good.models <- gsub("\\ \\(average\\)","",good.models)
+      
+    poor.models <- maxentResults[maxentResults$Test.AUC<0.7,c("Species","X.Training.samples","Test.AUC")]
+      poor.models$Species <- gsub("\\ \\(average\\)","",poor.models$Species)
+    assign(paste0("poor.models_",taxa[i]),poor.models)
+  
+  asc.files <- paste0(maxent.dir,taxa[i],"/pre1750v2/Full/",good.models,".asc")
+  pre1750.asc.files <- paste0(maxent.dir,taxa[i],"/pre1750v2/Full/",good.models,"_pre1750.asc")
+    
+  lapply(asc.files,convert.to.tif) 
+  lapply(pre1750.asc.files,convert.to.tif)
+  
+  maxent.data <- read.csv(paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/species_data/maxent.data_",taxa[i],".csv"))
+  poor.species.few.records <- poor.models$Species[poor.models$X.Training.samples<100]
+  for(j in seq(poor.species.few.records)){
+    species.data <- maxent.data[grepl(gsub("_"," ",poor.species.few.records[j]),maxent.data$species),]
+    coordinates(species.data) <- c("easting","northing")
+    presence.absence.raster(GH_PM.clipping.mask,species.data, raster.label=poor.species.few.records[j],region="GH_PM")
+#     file.remove(paste0(GH_PM.zonation.dir,"extant/",poor.species.few.records[j],"_SDM.GH_PM.tif"))
+  }
+ 
+
+# poor.species.many.records <- poor.models$Species[poor.models$X.Training.samples>100] 
+# 
+# for(j in seq(poor.species.many.records)){
+#   try({
+#     file.remove(paste0(GH.zonation.dir,"extant/",poor.species.many.records[j],"_SDM_GH.tif"))
+#     file.remove(paste0(GH.zonation.dir,"pre1750/",poor.species.many.records[j],"_pre1750_SDM_GH.tif"))
+#     cat("Removed", poor.species.many.records[j],"\n")
+#   },silent=T)
+# }
+
+}
+
+
+
+```
+
+```{r tecs}
+convert.to.tif <- function (asc.file) {
+    r <- raster(asc.file)
+    species <- strsplit(names(r),"_avg")
+    
+    r <- mask(crop(r,GH_PM.mask),GH_PM.mask)
+    
+    if(length(asc.file[grepl("pre1750\\/",asc.file)])==1) {
+      writeRaster(r,paste0(GH_PM.zonation.dir,"/pre1750/",as.character(species),"_pre1750_SDM.GH_PM.tif"), overwrite=T,datatype="INT2U")
+      } else {
+        r <- mask(r,GH_PM.clipping.mask)
+        writeRaster(r,paste0(GH_PM.zonation.dir,"/extant/",as.character(species),"_SDM.GH_PM.tif"), overwrite=T,datatype="INT2U")
+      }  
+    cat(" converted",as.character(species), "to tif","\n")
+    #file.remove(paste0(maxent.dir,asc.file))
+  }
+
+cat("Converting TECs","\n")
+  asc.files <- dir(paste0(maxent.dir,"tecs/pre1750v2"), pattern=".tif$",full.names=TRUE,recursive=T)
+  lapply(asc.files,convert.to.tif) 
+
+
+```
+
