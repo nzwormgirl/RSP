@@ -27,8 +27,8 @@ library(raster)
 
 
 #computer <- "~" #My computer
-# computer <- "Z:/Amy" #Super computer
-computer <- "//654cw-20990/Amy"
+computer <- "Z:/Amy" #Super computer
+# computer <- "//654cw-20990/Amy"
 
 # clip pre1750 layers?
   pre1750 <- TRUE
@@ -37,7 +37,7 @@ computer <- "//654cw-20990/Amy"
 # directories
   maxent.dir <- paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/")
 # location of GH files
-  GH.zonation.dir <- paste0(computer,"/GIS_data/Hunter/zonation/greater hunter/")
+  GH_PM.zonation.dir <- paste0(computer,"/GIS_data/Hunter/zonation/GH_PM/")
 
 # location of LH files
   LH.zonation.dir <- paste0(computer,"/GIS_data/Hunter/zonation/lower hunter/") 
@@ -51,7 +51,7 @@ computer <- "//654cw-20990/Amy"
   LH.mask[!is.na(LH.mask)] <- 0
 
 # LHSA clipping mask
-  LH.clipping.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/LH.clipping.mask.tif"))
+  LH.clipping.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/LH.clipping.mask_v2.tif"))
     LH.clipping.mask[!is.na(LH.clipping.mask)] <- 0
 
 # LHSA urban clipping mask
@@ -89,7 +89,7 @@ presence.absence.raster <- function (mask.raster,species.data,raster.label="") {
     speciesRaster <- mask(merge(speciesRaster,mask.raster),mask.raster)
     #label the raster
     names(speciesRaster) <- raster.label
-    writeRaster(speciesRaster,paste0(computer,"/GIS_data/Hunter/zonation/lower hunter/extant/",raster.label,"_SSI.LH.tif"), format="GTiff",overwrite=T)
+    writeRaster(speciesRaster,paste0(computer,"/GIS_data/Hunter/zonation/lower hunter/extant_May2015/",raster.label,"_SSI.LH.tif"), format="GTiff",overwrite=T)
   cat("Converted",as.character(raster.label),"to raster","\n")
   }
   gc()
@@ -102,15 +102,14 @@ Clip species
 ```{r identify maxent species within LHSA}
 # import maxent point data for GH data
   maxent.data <- read.csv(paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/species_data/maxent.data_ALA.NSW.csv"))
-    colnames(maxent.data) <- c("easting","northing","species")
 
 # create list of unique MaxEnt species
-  me.species <- data.frame(species=unique(maxent.data$species),AUC=NA,in.GH=NA,in.LHSA=NA,GH.max=NA,LH.max=NA)
+  me.species <- data.frame(species=as.character(unique(maxent.summary$Species)),AUC=NA,in.GH=NA,in.LHSA=NA,GH.max=NA,LH.max=NA)
     
 
 # loop through each species, identify which has points in LHSA and return list
   for(i in seq(me.species$species)){
-    s <- maxent.data[maxent.data$species==me.species$species[i],]
+    s <- maxent.data[as.character(maxent.data$species)==me.species$species[i],]
     
     # identify points within region
     me.species$AUC[i] <- maxent.summary$Test.AUC[grepl(me.species$species[i],maxent.summary$Species)]
@@ -128,11 +127,6 @@ Clip species
 ```
 
 ```{r clip maxent output for species with points in LHSA}
-# location of GH files
-  GH.zonation.dir <- paste0(computer,"/GIS_data/Hunter/zonation/greater hunter/")
-
-# location of LH files
-  LH.zonation.dir <- paste0(computer,"/GIS_data/Hunter/zonation/lower hunter/")
 
 # create list of LHSA species to clip
   LH.tifs <- me.species$species[me.species$in.LHSA == TRUE & me.species$AUC>=0.7]
@@ -140,10 +134,10 @@ Clip species
 
 # function to clip to LHSA region
   clip.to.LH <- function(tiff, mask.raster){
-    r <- raster(paste0(GH.zonation.dir,"extant/",tiff,"_SDM_GH.tif"),crs=GDA94.56)
+    r <- raster(paste0(GH_PM.zonation.dir,"extant/",tiff,"_SDM.GH_PM.tif"),crs=GDA94.56)
     
     if( cellStats(r,max) > 1){
-      r <- mask(crop(r,mask.raster),mask.raster,filename=paste0(LH.zonation.dir,"extant/",tiff,"_SDM.LH.tif"),format="GTiff",overwrite=T)
+      r <- mask(crop(r,mask.raster),mask.raster,filename=paste0(LH.zonation.dir,"extant_May2015/",tiff,"_SDM.LH.tif"),overwrite=T)
       cat("Clipped",as.character(tiff),"to Lower Hunter","\n")}
       
   }
@@ -153,11 +147,11 @@ Clip species
       species <- gsub("_"," ",species)  
     
     tryCatch({
-#       clip.to.LH(LH.tifs[j],LH.clipping.mask)
-      me.species[me.species$species==as.character(species),"GH.max"] <- cellStats(raster(paste0(GH.zonation.dir,"extant/",LH.tifs[j],"_SDM_GH.tif"),crs=GDA94.56),max)/1000
-      me.species[me.species$species==as.character(species),"LH.max"] <- cellStats(raster(paste0(LH.zonation.dir,"extant/",LH.tifs[j],"_SDM.LH.tif"),crs=GDA94.56),max)/1000
+      clip.to.LH(LH.tifs[j],LH.clipping.mask)
+      me.species[me.species$species==as.character(species),"GH.max"] <- cellStats(raster(paste0(GH_PM.zonation.dir,"extant/",LH.tifs[j],"_SDM.GH_PM.tif"),crs=GDA94.56),max)/1000
+      me.species[me.species$species==as.character(species),"LH.max"] <- cellStats(raster(paste0(LH.zonation.dir,"extant_May2015/",LH.tifs[j],"_SDM.LH.tif"),crs=GDA94.56),max)/1000
       
-      if(me.species[me.species$species==as.character(species),"GH.max"]*1000 > 1){
+      if(me.species[me.species$species==as.character(species),"LH.max"]*1000 > 1){
         protected.species$LH.sdm[protected.species$Scientific.Name==as.character(species)] <- "SDM"
       }
     }, error=function(err) cat(""),warning=function(war) cat("Check",LH.tifs[j],"for missing tif","\n"))
@@ -167,10 +161,10 @@ Clip species
   write.csv(me.species,paste0(computer,"/GIS_data/Hunter/zonation/lower hunter/maxent_species.list.csv"),row.names=F)
 
 
-for(i in seq(me.species$species)){
-  protected.species$greater.hunter[grepl(me.species$species[i],protected.species$Scientific.Name,fixed=T)] <- me.species$in.GH[me.species$species==me.species$species[i]]
-  protected.species$GH.sdm[grepl(me.species$species[i],protected.species$Scientific.Name)] <- "SDM"
-}
+# for(i in seq(me.species$species)){
+#   protected.species$greater.hunter[grepl(me.species$species[i],protected.species$Scientific.Name,fixed=T)] <- me.species$in.GH[me.species$species==me.species$species[i]]
+#   protected.species$GH.sdm[grepl(me.species$species[i],protected.species$Scientific.Name)] <- "SDM"
+# }
 ```
 
 ```{r identify species with low AUC scores in LH and convert to SSI}
@@ -219,7 +213,7 @@ try({
 
 ```{r create species SSI tifs}
 
-  ssi.dir <- paste0(computer,"/GIS_data/Hunter/zonation/greater hunter/ssi_files/")
+  ssi.dir <- paste0(computer,"/GIS_data/Hunter/zonation/GH_PM/SSI/")
 
   ssi.species <- data.frame(species=dir(ssi.dir, pattern=".txt$"),in.GH=NA,in.LHSA=NA)
 
@@ -227,7 +221,7 @@ for(i in seq(ssi.species$species)){
   try({
     species.data <- read.table(paste0(ssi.dir,ssi.species$species[i]),sep="\t")
     colnames(species.data) <- c("easting","northing","V3","V4")
-  species <- strsplit(as.character(ssi.species$species[i]),"_GH.txt")
+  species <- strsplit(as.character(ssi.species$species[i]),"_GH.PM.txt")
     species <- gsub(" ","_",species)
   
   # identify points within region
@@ -293,7 +287,7 @@ Clip TECS
 
 ```{r clip tec maxent output for tec with points in LHSA}
 # location of GH files
-  tec.dir <- paste0(computer,"/GIS_data/Hunter/zonation/greater hunter/extant/")
+  tec.dir <- paste0(computer,"/GIS_data/Hunter/zonation/GH_PM/extant/")
 
 # location of LH files
   LH.zonation.dir <- paste0(computer,"/GIS_data/Hunter/zonation/lower hunter/")
@@ -305,10 +299,10 @@ Clip TECS
 
 # function to clip to LHSA region
   clip.to.LH <- function(tiff, mask.raster){
-    r <- raster(paste0(tec.dir,tiff,"_SDM_GH.tif"))
+    r <- raster(paste0(tec.dir,tiff,"_SDM.GH_PM.tif"))
     
     if( cellStats(r,max) > 1){
-      r <- mask(crop(r,mask.raster),mask.raster,filename=paste0(LH.zonation.dir,"extant/",tiff,"_SDM.LH.tif"),format="GTiff",overwrite=T)
+      r <- mask(crop(r,mask.raster),mask.raster,filename=paste0(LH.zonation.dir,"extant_May2015/",tiff,"_SDM.LH.tif"),format="GTiff",overwrite=T)
       cat("Clipped",as.character(tiff),"to Lower Hunter","\n")}
       
   }
@@ -318,10 +312,10 @@ Clip TECS
     
     tryCatch({
       clip.to.LH(LH.tifs[j],LH.clipping.mask)
-      me.tec[me.tec$tec==tec,"GH.max"] <- cellStats(raster(paste0(tec.dir,LH.tifs[j],"_SDM_GH.tif")),max)/1000
-      me.tec[me.tec$tec==tec,"LH.max"] <- cellStats(raster(paste0(LH.zonation.dir,"extant/",LH.tifs[j],"_SDM.LH.tif")),max)/1000
+      me.tec[me.tec$tec==tec,"GH.max"] <- cellStats(raster(paste0(tec.dir,LH.tifs[j],"_SDM.GH_PM.tif")),max)/1000
+      me.tec[me.tec$tec==tec,"LH.max"] <- cellStats(raster(paste0(LH.zonation.dir,"extant_May2015/",LH.tifs[j],"_SDM.LH.tif")),max)/1000
       
-      if(me.tec[me.tec$tec==tec,"GH.max"]*1000 > 1){
+      if(me.tec[me.tec$tec==tec,"LH.max"]*1000 > 1){
         tec.data$LH.sdm[tec.data$TEC_Amy==as.character(tec)] <- "SDM"
       }
     }, error=function(err) cat(""),warning=function(war) cat("Check",LH.tifs[j],"for missing tif","\n"))
@@ -357,7 +351,7 @@ Clip TECS
   
         presence.absence.raster(LH.clipping.mask,ssi.data, raster.label=tec.list[i])
         try({
-            file.remove(paste0(LH.zonation.dir,"extant/",tec.list[i],"_SDM.LH.tif"))
+            file.remove(paste0(LH.zonation.dir,"extant_May2015/",tec.list[i],"_SDM.LH.tif"))
             cat("Removed",paste0(tec.list[i],"_SDM.LH.tif","\n"))
             },silent=T)
         
@@ -378,7 +372,7 @@ Clip TECS
   ssi.tec <- data.frame(tec=dir(ssi.dir, pattern=".txt$", recursive=T),in.GH=NA,in.LHSA=NA)
 
 for(i in seq(ssi.tec$tec)){  
-  ssi.data <- read.table(paste0(ssi.dir,ssi.tec$tec[i]),sep="\t")
+  ssi.data <- read.table(paste0(ssi.dir,ssi.tec$tec[i]),sep=" ")
     colnames(ssi.data) <- c("easting","northing","V3","V4")
   tec <- tolower(strsplit(as.character(ssi.tec$tec[i]),"_GH.txt"))
   
@@ -410,15 +404,15 @@ if (pre1750 == TRUE){
   
 # function to clip to LHSA region
   clip.pre1750.to.LH <- function(tiff, mask.raster){
-    r <- raster(paste0(GH.zonation.dir,"pre1750/",tiff),crs=GDA94.56)
-    tiff <- gsub("_GH.tif","",tiff)
-      r <- mask(crop(r,mask.raster),mask.raster,filename=paste0(LH.zonation.dir,"pre1750/",tiff,".LH.tif"),format="GTiff",overwrite=T)
+    r <- raster(paste0(GH_PM.zonation.dir,"pre1750/",tiff),crs=GDA94.56)
+    tiff <- gsub(".GH_PM.tif","",tiff)
+      r <- mask(crop(r,mask.raster),mask.raster,filename=paste0(LH.zonation.dir,"pre1750_May2015/",tiff,".LH.tif"),format="GTiff",overwrite=T)
       cat("Clipped",as.character(tiff),"to Lower Hunter","\n")
     }      
   
   
-sdms <- dir(paste0(LH.zonation.dir,"extant/"),pattern="_SDM.LH.tif")
-  sdms <- gsub("SDM.LH","pre1750_SDM_GH",sdms)
+sdms <- dir(paste0(LH.zonation.dir,"extant_May2015/"),pattern="_SDM.LH.tif")
+  sdms <- gsub("SDM.LH","pre1750_SDM.GH_PM",sdms)
   
     for(i in seq(sdms)){
       try(clip.pre1750.to.LH(sdms[i],LH.urban.clipping.mask),silent=T)
