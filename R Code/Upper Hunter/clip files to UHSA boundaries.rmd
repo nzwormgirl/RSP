@@ -8,8 +8,18 @@ rm(list=ls())
 
 library(raster)
 
-computer <- "~" #My computer
-#computer <- "Z:/Amy" #Super computer
+
+#computer <- "~" #My computer
+computer <- "Z:/Amy" #Super computer
+# computer <- "//654cw-20990/Amy"
+
+# directories
+  maxent.dir <- paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/")
+# location of GH files
+  GH_PM.zonation.dir <- paste0(computer,"/GIS_data/Hunter/zonation/GH_PM/")
+
+# location of UH files
+  UH.zonation.dir <- paste0(computer,"/GIS_data/Hunter/zonation/upper hunter/final models_May 2015/") 
 
 # set projections
   GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
@@ -19,60 +29,378 @@ computer <- "~" #My computer
  UH.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/UH_HCCREMS.mask.tif"))
   UH.mask[!is.na(UH.mask)] <- 0
 
-# import maxent point data for GH data
-  maxent.data <- read.csv(paste0(computer,"/GIS_data/Hunter/Maxent_files/species_data/maxent.data_ALA.NSW.csv"))
+# UHSA clipping mask
+  UH.clipping.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/UH_HCCREMS.clipping.mask_v2.tif"))
+    UH.clipping.mask[!is.na(UH.clipping.mask)] <- 0
+
+# open species list
+  protected.species <- read.csv(paste0(computer,"/GIS_data/Hunter/species point data/IBRA threatened species list.csv"))
+    levels(protected.species$UH.sdm) <- c(NA,"SDM","SSI")
+
+# open tec list
+  tec.data <- read.csv(paste0(computer,"/GIS_data/Hunter/species point data/GreaterHunter_DRAFT_100812 (2).csv"))
+    tec.data$UH.points <- NA
+    tec.data$UH.sdm <- NA
+
+# delete all existing tifs in lower hunter folder
+## only run this if you definitely want to delete these files!!
+tifs <- dir(paste0(UH.zonation.dir,"extant/"), pattern="UH.tif$",full.names=T)
+# file.remove(tifs)
+tifs <- dir(paste0(UH.zonation.dir,"pre1750/"), pattern="UH.tif$",full.names=T)
+# file.remove(tifs)
+
+maxent.summary <- read.csv(paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/DotE report - maxent summary.csv"))
+
+poorly.modelled <- read.csv(paste0(maxent.dir,"DotE report - poorly modelled species.csv"))
 ```
 
 You can also embed plots, for example:
 
 ```{r identify maxent species within UHSA}
+# import maxent point data for GH data
+  maxent.data <- read.csv(paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/species_data/maxent.data_ALA.NSW.csv"))
 
 # create list of unique MaxEnt species
-  me.species <- d(species=unique(maxent.data$species),in.UHSA=NA)
+  me.species <- data.frame(species=unique(maxent.data$species),in.UHSA=NA)
 
 # loop through each species, identify which has points in UHSA and return list
   for(i in seq(me.species$species)){
-    s <- maxent.data[maxent.data$species==me.species$species[i],]
+    s <- maxent.data[as.character(maxent.data$species)==me.species$species[i],]
     
     # identify points within region
-    in.UHSA <- length(which(!is.na(cellFromXY(UH.mask,s[,2:3]))))
+    try(me.species$AUC[i] <- maxent.summary$Test.AUC[grepl(me.species$species[i],maxent.summary$Species)],silent=T)
+    me.species$in.GH[i] <- nrow(s)
+    in.UHSA <- length(which(!is.na(extract(UH.clipping.mask,s[,c("easting","northing")]))))
     
-    if(in.UHSA) {
+    
+    if(in.UHSA>0) {
       me.species$in.UHSA[i] <- "TRUE"
-      cat(as.character(me.species$species[i]),"has points in UHSA","\n")
+      cat(as.character(me.species$species[i]),"has", in.UHSA, "points in UHSA","\n")
+      protected.species$upper.hunter[protected.species$Scientific.Name==as.character(me.species$species[i])] <- in.UHSA
         } else me.species$in.UHSA[i] <- "FALSE"
   }
 
 ```
 
 ```{r clip maxent out for species with points in UHSA}
-# location of GH files
-  GH.zonation.dir <- paste0(computer,"/GIS_data/Hunter/zonation/greater hunter/")
-
-# UHSA clipping mask
-  UH.clipping.mask <- raster(paste0(computer,"/GIS_data/Hunter/mask files/UH_HCCREMS.clipping.mask.tif"))
-    UH.clipping.mask[!is.na(UH.clipping.mask)] <- 0
-
-# location of UH files
-  UH.zonation.dir <- paste0(computer,"/GIS_data/Hunter/zonation/upper hunter/")
-
 # create list of UHSA species to clip
   UH.tifs <- me.species$species[me.species$in.UHSA == TRUE]
-    UH.tifs <- paste0(gsub(" ","_",UH.tifs),".tif")
+    UH.tifs <- gsub(" ","_",UH.tifs)
 
 # function to clip to UHSA region
 clip.to.UH <- function(tiff, mask.raster){
-  r <- raster(paste0(GH.zonation.dir,UH.tifs))
-  species <- strsplit(names(r),".tif")
-  r <- mask(crop(r,mask.raster),mask.raster,filename=paste0(UH.zonation.dir,species,"_UH.tif"),format="GTiff",overwrite=T)
-  cat("Clipped",as.character(species),"to Upper Hunter","\n")
-}
+    r <- raster(paste0(GH_PM.zonation.dir,"extant/",tiff,"_SDM.GH_PM.tif"),crs=GDA94.56)
+    
+    if( cellStats(r,max) > 1){
+      r <- mask(crop(r,mask.raster),mask.raster,filename=paste0(UH.zonation.dir,"extant/",tiff,"_SDM.UH.tif"),overwrite=T)
+      cat("Clipped",as.character(tiff),"to Upper Hunter","\n")
+      }
+      
+  }
 
-  mask.raster <- UH.clipping.mask
 
-  lapply(UH.tifs,clip.to.LH)
+ for(j in seq(UH.tifs)){  
+    species <- UH.tifs[j] 
+      species <- gsub("_"," ",species)  
+    
+    tryCatch({
+      clip.to.UH(UH.tifs[j],UH.clipping.mask)
+      me.species[me.species$species==as.character(species),"GH.max"] <- cellStats(raster(paste0(GH_PM.zonation.dir,"extant/",UH.tifs[j],"_SDM.GH_PM.tif"),crs=GDA94.56),max)/1000
+      me.species[me.species$species==as.character(species),"UH.max"] <- cellStats(raster(paste0(UH.zonation.dir,"extant/",UH.tifs[j],"_SDM.UH.tif")),max)/1000
+      
+      if(me.species[me.species$species==as.character(species),"UH.max"]*1000 > 1){
+        protected.species$UH.sdm[protected.species$Scientific.Name==as.character(species)] <- "SDM"
+      }
+    }, error=function(err) cat(""),warning=function(war) cat("Check",UH.tifs[j],"for missing tif","\n"))
+  }
+
+# save species list output for future use
+  write.csv(me.species,paste0(computer,"/GIS_data/Hunter/zonation/upper hunter/maxent_species.list.csv"),row.names=F)
 
 
 
 ```
 
+
+```{r presence.absence.raster function}
+    
+presence.absence.raster <- function (mask.raster,species.data,raster.label="") {
+    #set the cells that contain points to 1
+  speciesRaster <- rasterize(species.data,mask.raster,field=1)
+    if(cellStats(speciesRaster,max)>0){
+    speciesRaster <- mask(merge(speciesRaster,mask.raster),mask.raster)
+    #label the raster
+    names(speciesRaster) <- raster.label
+    writeRaster(speciesRaster,paste0(computer,"/GIS_data/Hunter/zonation/upper hunter/extant/",raster.label,"_SSI.UH.tif"), format="GTiff",overwrite=T)
+  cat("Converted",as.character(raster.label),"to raster","\n")
+  }
+  gc()
+}
+
+```
+
+
+```{r identify species with low AUC scores in UH and convert to SSI}
+me.species <- read.csv(paste0(computer,"/GIS_data/Hunter/zonation/upper hunter/maxent_species.list.csv"))
+
+# set minimum threshold
+  threshold <- 0.7
+
+# identify species that have low SDM values within the UH
+  species.list <- as.character(me.species$species[me.species$UH.max/me.species$GH.max<0.25])
+    species.list <- species.list[!is.na(species.list)]
+  # add those species that seem to be missing SDMs  
+    species.list <- unique(c(as.character(species.list),as.character(me.species$species[me.species$in.UHSA==TRUE & is.na(me.species$GH.max) & me.species$in.GH<100]),as.character(me.species$species[me.species$AUC < threshold & me.species$in.GH<100])))
+  
+# create presence-absence rasters for species with low AUC values 
+    if(length(species.list)>0){
+     
+      for(i in seq(species.list)){
+        species <- gsub(" ","_",species.list[i])
+        species.data <- maxent.data[maxent.data$species == species.list[i],]
+        species.data <- species.data[,c("easting","northing")]
+                presence.absence.raster(UH.clipping.mask,species.data, raster.label=species)
+        try({
+            file.remove(paste0(UH.zonation.dir,"extant/",species,"_SDM.UH.tif"))
+            cat("Removed",paste0(species,"_SDM.UH.tif","\n"))
+            },silent=T)
+        species <- gsub("_"," ",species)
+        protected.species$UH.sdm[protected.species$Scientific.Name==as.character(species)] <- "SSI"
+      }
+    }
+
+# remove species with poor AUC values & more than 100 points
+species.list <- as.character(me.species$species[me.species$AUC < threshold & me.species$in.GH>100])
+for(i in seq(species.list)){
+try({
+            file.remove(paste0(UH.zonation.dir,"extant/",gsub(" ","_",species.list[i]),"_SDM.UH.tif"))
+            cat("Removed",paste0(species.list[i],"_SDM.UH.tif","\n"))
+            },silent=T)
+}
+
+# save species list output for future use
+  write.csv(me.species,paste0(computer,"/GIS_data/Hunter/zonation/upper hunter/maxent_species.list.csv"),row.names=F)
+
+```
+
+
+```{r create species SSI tifs}
+
+  ssi.dir <- paste0(computer,"/GIS_data/Hunter/zonation/GH_PM/SSI/")
+
+  ssi.species <- data.frame(species=dir(ssi.dir, pattern=".txt$"),in.GH=NA,in.UHSA=NA)
+
+for(i in seq(ssi.species$species)){
+  try({
+    species.data <- read.table(paste0(ssi.dir,ssi.species$species[i]),sep="\t")
+    colnames(species.data) <- c("easting","northing","V3","V4")
+  species <- strsplit(as.character(ssi.species$species[i]),"_GH.PM.txt")
+    species <- gsub(" ","_",species)
+  
+  # identify points within region
+    ssi.species$in.GH[i] <- nrow(species.data)
+    in.UHSA <- length(which(!is.na(extract(UH.clipping.mask,species.data[,c("easting","northing")]))))
+    
+    species <- gsub("_"," ",species)
+    
+    if(in.UHSA>0) {
+      ssi.species$in.UHSA[i] <- "TRUE"
+      cat(as.character(species),"has",in.UHSA,"points in UHSA","\n")
+          
+      presence.absence.raster(UH.clipping.mask,species.data[,1:2], raster.label=species)
+      
+      protected.species$UH.sdm[protected.species$Scientific.Name==as.character(species)] <- "SSI"
+      protected.species$upper.hunter[protected.species$Scientific.Name==as.character(species)] <- in.UHSA
+    
+    } else ssi.species$in.UHSA[i] <- "FALSE"
+  })
+  
+  }
+
+write.csv(ssi.species,paste0(computer,"/GIS_data/Hunter/zonation/lower hunter/ssi.species.csv"),row.names=F)
+# write.csv(protected.species,paste0(computer,"/GIS_data/Hunter/species point data/IBRA threatened species list.csv"),row.names=F)
+
+```
+
+
+Clip TECS
+
+```{r identify maxent tec within UHSA}
+# import maxent point data for GH data
+  maxent.data <- read.csv(paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/species_data/maxent.data_tecs.csv"))
+   maxent.data$tec <- gsub("'",".",maxent.data$tec) 
+
+  maxentResults <- read.csv(paste0(computer,"/GIS_data/Hunter/Maxent_files/ghm.pm/all_variables/output/tecs/pre1750v2/contributions.csv"))
+    maxentResults$tec <- gsub("'",".",maxentResults$tec)
+
+# create list of unique MaxEnt tec
+  me.tec <- data.frame(tec=unique(maxent.data$tec),in.GH=NA,in.UHSA=NA,GH.max=NA,UH.max=NA,AUC=NA)
+
+# loop through each tec, identify which has points in UHSA and return list
+  for(i in seq(me.tec$tec)){
+    s <- maxent.data[maxent.data$tec==me.tec$tec[i],]
+    
+    # identify points within region
+    me.tec$in.GH[i] <- nrow(s)
+    in.UHSA <- length(which(!is.na(extract(UH.clipping.mask,s[,c("easting","northing")]))))
+    
+    if(in.UHSA>0) {
+      me.tec$in.UHSA[i] <- "TRUE"
+      cat(as.character(me.tec$tec[i]),"has", in.UHSA, "points in UHSA","\n")
+      tec.data$UH.points[tec.data$TEC_Amy==as.character(me.tec$tec[i])] <- in.UHSA
+        } else me.tec$in.UHSA[i] <- "FALSE"
+    me.tec$AUC[i] <- maxentResults[grepl(me.tec$tec[i],maxentResults$tec),"cv.roc.mean" ]
+  }
+
+```
+
+```{r clip tec maxent output for tec with points in UHSA}
+# location of GH files
+  tec.dir <- paste0(computer,"/GIS_data/Hunter/zonation/GH_PM/extant/")
+
+# location of UH files
+  UH.zonation.dir <- paste0(computer,"/GIS_data/Hunter/zonation/upper hunter/")
+
+# create list of UHSA tec to clip
+  UH.tifs <- me.tec$tec[me.tec$in.UHSA == TRUE]
+    UH.tifs <- gsub(" ","_",UH.tifs)
+    UH.tifs <- gsub("'",".",UH.tifs)
+
+# function to clip to UHSA region
+  clip.to.UH <- function(tiff, mask.raster){
+    r <- raster(paste0(tec.dir,tiff,"_SDM.GH_PM.tif"))
+    
+    if( cellStats(r,max) > 1){
+      r <- mask(crop(r,mask.raster),mask.raster,filename=paste0(UH.zonation.dir,"extant/",tiff,"_SDM.UH.tif"),format="GTiff",overwrite=T)
+      cat("Clipped",as.character(tiff),"to Upper Hunter","\n")}
+      
+  }
+
+  for(j in seq(UH.tifs)){  
+    tec <- UH.tifs[j]  
+    
+    tryCatch({
+      clip.to.UH(UH.tifs[j],UH.clipping.mask)
+      me.tec[me.tec$tec==tec,"GH.max"] <- cellStats(raster(paste0(tec.dir,UH.tifs[j],"_SDM.GH_PM.tif")),max)/1000
+      me.tec[me.tec$tec==tec,"UH.max"] <- cellStats(raster(paste0(UH.zonation.dir,"extant/",UH.tifs[j],"_SDM.UH.tif")),max)/1000
+      
+      if(me.tec[me.tec$tec==tec,"UH.max"]*1000 > 1){
+        tec.data$UH.sdm[tec.data$TEC_Amy==as.character(tec)] <- "SDM"
+      }
+    }, error=function(err) cat(""),warning=function(war) cat("Check",UH.tifs[j],"for missing tif","\n"))
+  }
+
+# save tec list output for future use
+  write.csv(me.tec,paste0(computer,"/GIS_data/Hunter/zonation/upper hunter/maxent_tec.list.csv"),row.names=F)
+
+```
+
+
+```{r identify tec with low AUC scores in UH and convert to SSI}
+
+# # set minimum threshold
+  threshold <- 0.7
+
+# identify tec that have low SDM values within the UH
+  low.AUC <- me.tec$tec[me.tec$AUC < threshold]
+    low.AUC <- as.character(low.AUC[!is.na(low.AUC)])
+  low.predictions <- as.character(me.tec$tec[me.tec$UH.max/me.tec$GH.max<0.25])
+    low.predictions <- as.character(low.predictions[!is.na(low.predictions)])
+  missing.sdms <- as.character(me.tec$tec[me.tec$in.UHSA==TRUE & is.na(me.tec$GH.max)])
+  # add those tec that seem to be missing SDMs  
+    tec.list <- c(low.AUC,low.predictions,missing.sdms)
+  
+# create presence-absence rasters for tec with low SDM values 
+    if(length(tec.list)>0){
+     
+      for(i in seq(tec.list)){
+        
+        ssi.data <- maxent.data[maxent.data$tec == tec.list[i],]
+        ssi.data <- ssi.data[,c("easting","northing")]
+  
+        presence.absence.raster(UH.clipping.mask,ssi.data, raster.label=tec.list[i])
+        try({
+            file.remove(paste0(UH.zonation.dir,"extant/",tec.list[i],"_SDM.UH.tif"))
+            cat("Removed",paste0(tec.list[i],"_SDM.UH.tif","\n"))
+            },silent=T)
+        
+        tec.data$UH.sdm[tec.data$TEC_Amy==as.character(tec.list[i])] <- "SSI"
+      }
+    }
+
+# save tec list output for future use
+  write.csv(me.tec,paste0(computer,"/GIS_data/Hunter/zonation/upper hunter/maxent_tec.list.csv"),row.names=F)
+
+```
+
+
+```{r create tec SSI tifs}
+
+  ssi.dir <- paste0(computer,"/GIS_data/Hunter/zonation/greater hunter/ssi_files/tecs/")
+
+  ssi.tec <- data.frame(tec=dir(ssi.dir, pattern=".txt$", recursive=T),in.GH=NA,in.UHSA=NA)
+
+for(i in seq(ssi.tec$tec)){  
+  ssi.data <- read.table(paste0(ssi.dir,ssi.tec$tec[i]),sep=" ")
+    colnames(ssi.data) <- c("easting","northing","V3","V4")
+  tec <- tolower(strsplit(as.character(ssi.tec$tec[i]),"_GH.txt"))
+  
+  # identify points within region
+    ssi.tec$in.GH[i] <- nrow(ssi.data)
+    in.UHSA <- length(which(!is.na(extract(UH.clipping.mask,ssi.data[,c("easting","northing")]))))
+    
+    if(in.UHSA>0) {
+      ssi.tec$in.UHSA[i] <- "TRUE"
+      cat(as.character(tec),"has",in.UHSA,"points in UHSA","\n")
+          
+      presence.absence.raster(UH.clipping.mask,ssi.data[,c("easting","northing")], raster.label=tec)
+      
+      tec.data$UH.sdm[tec.data$TEC_Amy==tec] <- "SSI"
+      tec.data$UH.points[tec.data$TEC_Amy==tec] <- in.UHSA
+    
+    } else ssi.tec$in.UHSA[i] <- "FALSE"
+  
+  }
+
+write.csv(ssi.tec,paste0(computer,"/GIS_data/Hunter/zonation/upper hunter/ssi.tec.csv"),row.names=F)
+
+```
+
+
+```{r create zonation spp file}
+  ignore.species <- gsub(" ","_",protected.species$Scientific.Name[protected.species$ignore=="Y"])
+
+  extant.tifs <- dir(paste0(UH.zonation.dir,"extant/"), pattern=".UH.tif$")
+    extant.tifs <- extant.tifs[!extant.tifs %in% paste0(ignore.species,"_SSI.UH.tif")]
+    extant.tifs <- extant.tifs[!extant.tifs %in% paste0(ignore.species,"_SDM.UH.tif")]
+    extant.tifs <- extant.tifs[!extant.tifs %in% paste0(ignore.species,"_pre1750_SDM.UH.tif")]
+    extant.tifs <- paste0("extant/",extant.tifs)
+
+UH.extant.zonation.spp <- data.frame(weight=1.0, alpha=1.0, bqp.row=1.0, bqp.buffer=1.0, cell.removal=1.0, species=extant.tifs )
+  write.table(UH.extant.zonation.spp,paste0(UH.zonation.dir,"UH.extant.zonation.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+
+weights <- protected.species[protected.species$ignore!="Y",c("Scientific.Name","weight")]
+temp <- tec.data[!duplicated(tec.data$TEC_Amy),c("TEC_Amy","weight")]
+  temp$TEC_Amy <- tolower(temp$TEC_Amy)
+  colnames(temp) <- c("Scientific.Name","weight")
+weights <- rbind(weights,temp)
+  weights$Scientific.Name <- gsub("bioregions","bioregion",gsub(" ","_", weights$Scientific.Name))
+  weights <- weights[!is.na(weights$weight),]
+
+#species weights
+for(i in seq(UH.extant.zonation.spp$species)){
+  try(UH.extant.zonation.spp$weight[i] <- weights$weight[weights$Scientific.Name == gsub("extant|\\/|DotE|\\.UH|\\_UH|\\.tif|\\_SDM|\\_SSI","",UH.extant.zonation.spp$species[i])],silent=T)
+}
+
+UH.extant.zonation.spp$weight[is.na(UH.extant.zonation.spp$weight)] <- 1
+
+write.table(UH.extant.zonation.spp,paste0(UH.zonation.dir,"UH.extant.zonation.weighted.spp"),sep="\t",row.names=FALSE, col.names=FALSE)
+
+write.csv(protected.species,paste0(computer,"/GIS_data/Hunter/species point data/IBRA threatened species list.csv"),row.names=F)
+
+write.csv(tec.data,paste0(computer,"/GIS_data/Hunter/species point data/GreaterHunter_DRAFT_100812 (2).csv"),row.names=F)
+
+
+# file.remove(paste0(UH.zonation.dir,"extant/",gsub(" SDM","_SSI",gsub("_"," ",extant.tifs[duplicated(strip.names(extant.tifs))]))))
+# file.rename(paste0(UH.zonation.dir,"extant/",extant.tifs),paste0(UH.zonation.dir,"extant/",gsub(" ","_",extant.tifs)))
+```
