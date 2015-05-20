@@ -357,14 +357,13 @@ results$datatype[grepl("SSI",names)] <- "points"
 results$weight <- protected.species$weight[protected.species$Scientific.Name %in% results$species]
 results$GH.points <- protected.species$greater.hunter[protected.species$Scientific.Name %in% results$species]
 results$PM.points <- protected.species$PM[protected.species$Scientific.Name %in% results$species]
-results$distribution.size <- round(distribution.size$relative.distribution*100,1)
 
 for(s in seq(guilds$species)){
   results$guild[as.character(results$species) == as.character(guilds$species[s])] <- as.character(guilds$guild[s])
 }
   results$guild[results$guild==""] <- NA
 
-results <- results[,c("taxa","family","species","common.name","guild","NSW.status","Comm.status","mnes","datatype","distribution.size","GH.points","PM.points","top5","top10","top15","top30")]
+results <- results[,c("taxa","family","species","common.name","guild","NSW.status","Comm.status","mnes","datatype","GH.points","PM.points","top5","top10","top15","top30")]
 
 ```
 
@@ -483,6 +482,13 @@ png(paste0(output_path,"species protection with expansion_",analysis.date,".png"
 
 dev.off()
 
+png(paste0(output_path,"species protection with expansion.High_",analysis.date,".png"), width = 15, height = 10, units="cm",res=300,bg="transparent",pointsize=10)
+  
+  par(las=1,mfrow=c(1,1), mar=c(4,9,1,1), oma=c(0,0,0,0))
+  boxplot(results$expand.High30,results$expand.High15,results$expand.High10,results$expand.High5,results$PA.High,horizontal=T,xlab="Proportion of feature distributions protected",names=c("Top 30% added","Top 15% added","Top 10% added","Top 5% added","High security"),col=c("lightgrey","lightgrey","lightgrey","lightgrey",pa.col[2]),ylim=c(0,1))
+
+dev.off()
+
 ```
 
 ```{r guild summary}
@@ -531,6 +537,26 @@ png(paste0(output_path,"guild protection with expansion_01_",analysis.date,".png
   par(mar=c(4,11,2,1),las=1,oma=c(0,0,0,0))
 
 boxplot(results$expand30~results$guild,xlab="Proportion of distributions protected",names=c("Amphibians",paste0("Cave-roosting","\n","microbats"),"Frugivorous birds","Nectarivorous birds",paste0("Phalangers, Phascogales","\n","& their predators"),"Shore birds","Water birds"),horizontal = T,col="lightgrey", ylim=c(0,1))
+
+dev.off()
+
+png(paste0(output_path,"guild protection with expansion_High01_",analysis.date,".png"), width = 15, height = 10, units="cm",res=300,bg="transparent",pointsize=10)
+  
+  par(mar=c(4,11,0,1),las=1,oma=c(0,0,0,0))
+
+boxplot(results$expand.High30~results$guild,xlab="Proportion of distributions protected",names=c("Amphibians",paste0("Cave-roosting","\n","microbats"),"Frugivorous birds","Nectarivorous birds",paste0("Phalangers, Phascogales","\n","& their predators"),"Shore birds","Water birds"),horizontal = T,col="lightgrey", ylim=c(0,1))
+
+dev.off()
+
+png(paste0(output_path,"guild protection & expansion_High01_",analysis.date,".png"), width = 15, height = 20, units="cm",res=300,bg="transparent",pointsize=10)
+  
+  par(mfrow=c(2,1),mar=c(4,11,2,1),las=1,oma=c(0,0,0,0))
+
+boxplot(results$PA.High~results$guild,xlab="Proportion of distributions currently protected",names=c("Amphibians",paste0("Cave-roosting","\n","microbats"),"Frugivorous birds","Nectarivorous birds",paste0("Phalangers, Phascogales","\n","& their predators"),"Shore birds","Water birds"),horizontal = T,col="lightgrey", ylim=c(0,1))
+mtext("A",side=3,adj=0.025,line=-1.5,font=2,cex=1.5)
+
+boxplot(results$expand.High30~results$guild,xlab="Proportion of distributions protected after expansion",names=c("Amphibians",paste0("Cave-roosting","\n","microbats"),"Frugivorous birds","Nectarivorous birds",paste0("Phalangers, Phascogales","\n","& their predators"),"Shore birds","Water birds"),horizontal = T,col="lightgrey", ylim=c(0,1))
+mtext("B",side=3,adj=0.025,line=-1.5,font=2,cex=1.5)
 
 dev.off()
 

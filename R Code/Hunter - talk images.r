@@ -1,14 +1,20 @@
 packages(maptools)
 packages(raster)
 packages(RColorBrewer)
+library(colorRamps)
 
 # computer <- "I:/Super Computer Data"
 computer <- "H:/UM backup"
 
 setwd(paste0(computer,"/GIS_Data/Hunter/"))
 
+GDA94.56 <- CRS("+proj=utm +zone=56 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs")
+GDA94 <- CRS("+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs")
 
-hccrems.raster <- raster(paste0(computer,"/GIS_Data/Hunter/Maxent_files/ghm.pm/environmental_data/hccrems_mask.asc"))
+hccrems.raster <- raster(paste0(computer,"/GIS_Data/Hunter/mask files/gh.mask.tif"))
+GH.shp <- readShapePoly(paste0(computer,"/GIS_data/Hunter/All data from harddrive/From HCCREMS/Boundaries/AoI/HCCREMS_LGA.shp"),proj4=GDA94)
+  GH.shp <- spTransform(GH.shp,GDA94.56)
+
 species.data <- read.csv(paste0(computer,"/GIS_data/Hunter/Maxent_files/species_data/maxent.data_ALA.NSW.csv"))
 cma.mask <- readShapePoly(paste0(computer,"/GIS_data/Hunter/Plans/HCCREMS_AreaOfInterest/HCCREMS_AoI_GDAtm.shp"))
 lh.mask <- readShapePoly(paste0(computer,"/GIS_data/Hunter/All data from harddrive/From DO/OEH_Lower_Hunter_18122012/Administrative/LHRS_Study_Area.shp"))
@@ -24,6 +30,12 @@ png("GH_PM boundary.png",height=10,width=10,units="cm",res=300,bg="transparent")
   par(mar=c(0,0,0,0),oma=c(0,0,0,0))
   plot(gh.pm.raster,axes=F, legend=F,box=F,col="whitesmoke")
   plot(gh.pm.mask,add=T)
+dev.off()
+
+png("GH boundary.png",height=10,width=10,units="cm",res=300,bg="transparent")
+par(mar=c(0,0,0,0),oma=c(0,0,0,0))
+plot(hccrems.raster,axes=F, legend=F,box=F,col="whitesmoke")
+plot(GH.shp,add=T)
 dev.off()
 
 png("GH_PM points.png",height=10,width=10,units="cm",res=300)
@@ -82,6 +94,32 @@ png("GH_PM SDM.png",height=10,width=10,units="cm",res=300,bg="transparent")
 #   plot(PM.shp,add=T)
 dev.off()
 
+Aegotheles_cristatus_GH <- mask(crop(Aegotheles_cristatus_GH_PM,hccrems.raster),hccrems.raster)
+
+png("GH SDM.png",height=10,width=10,units="cm",res=300,bg="transparent")
+par(mar=c(0,0,0,0),oma=c(0,0,0,0))
+plot(hccrems.raster, col="whitesmoke", legend=F, axes=F, box=F)
+plot(Aegotheles_cristatus_GH,col=blue2red(10),legend=F,axes=F,zlim=c(0,1000),add=T)
+#   points(sp.points.GH,pch=1,cex=0.5,col=alpha("black",0.5))
+plot(GH.shp,add=T,border="black",lwd=0.5)
+#   plot(PM.shp,add=T)
+dev.off()
+
+
+GH.priority <- raster("I:/Super Computer Data/GIS_data/Hunter/zonation/greater hunter/output_files/output_5March14_greater.hunter.rank.asc")
+
+top.fraction <- c(0.05, 0.1, 0.15, 0.3)
+pri.breaks <- sort(c(0,1-top.fraction,1))
+pri.col = c('dark grey', 'turquoise', 'yellow', 'orange', 'red')
+pri.labels <- c("top 5%","top 10%","top 15%","top 30%","rest")
+
+png("GH priority.png",height=10,width=10,units="cm",res=300,bg="transparent")
+par(mar=c(0,0,0,0),oma=c(0,0,0,0))
+plot(hccrems.raster, col="whitesmoke", legend=F, axes=F, box=F)
+plot(GH.priority,col=pri.col,breaks=pri.breaks,legend=F,axes=F,zlim=c(0,1000),add=T)
+plot(GH.shp,add=T,border="black",lwd=0.5)
+dev.off()
+
 
 ninox <- raster(paste0(computer,"/GIS_data/Hunter/zonation/greater hunter/Ninox_novaeseelandiae.tif"))
 ninox.colour <- brewer.pal(9,"Blues")
@@ -137,4 +175,6 @@ png(paste0(computer,"/Teaching/Vegetation Management/Acacia_prominens_points.png
 plot(cma.mask,axes=F, legend=F, box="n")
 points(species.data$easting[species.data$species=="Acacia prominens"],species.data$northing[species.data$species=="Acacia prominens"])
 dev.off()
+
+
 
