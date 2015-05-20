@@ -53,14 +53,8 @@ computer <- "Z:/Amy" #Super computer
 
 # open species list
   protected.species <- read.csv(paste0(computer,"/GIS_data/Hunter/species point data/IBRA threatened species list.csv"))
-#     levels(protected.species$HCCREMS.sdm) <- c(NA,"SDM","SSI")
 
-# open tec list
-  tec.data <- read.csv(paste0(computer,"/GIS_data/Hunter/species point data/GreaterHunter_DRAFT_100812 (2).csv"))
-#     tec.data$LH.points <- NA
-#     tec.data$LH.sdm <- NA
-
-# delete all existing tifs in lower hunter folder
+# delete all existing tifs in greater hunter folder
 ## only run this if you definitely want to delete these files!!
 # tifs <- dir(paste0(GH_PM.zonation.dir,"extant/"), pattern="GH_PM.tif$",full.names=T)
 # file.remove(tifs)
@@ -107,13 +101,14 @@ Clip species
     # identify points within region
     me.species$AUC[i] <- maxent.summary$Test.AUC[grepl(me.species$species[i],maxent.summary$Species)]
     me.species$in.GH[i] <- nrow(s)
+    protected.species$GH_PM[protected.species$Scientific.Name==as.character(me.species$species[i])] <- me.species$in.GH[i]
     in.HCCREMS <- length(which(!is.na(extract(GH.clipping.mask,s[,c("easting","northing")]))))
     
     
     if(in.HCCREMS>0) {
       me.species$in.HCCREMS[i] <- "TRUE"
       cat(as.character(me.species$species[i]),"has", in.HCCREMS, "points in GH region","\n")
-#       protected.species$lower.hunter[protected.species$Scientific.Name==as.character(me.species$species[i])] <- in.HCCREMS
+      protected.species$greater.hunter[protected.species$Scientific.Name==as.character(me.species$species[i])] <- in.HCCREMS
         } else me.species$in.HCCREMS[i] <- "FALSE"
   }
 
@@ -159,11 +154,6 @@ clip.to.GH <- function (asc.file) {
 # save species list output for future use
   write.csv(me.species,paste0(computer,"/GIS_data/Hunter/zonation/greater hunter/maxent_species.list.csv"),row.names=F)
 
-
-# for(i in seq(me.species$species)){
-#   protected.species$greater.hunter[grepl(me.species$species[i],protected.species$Scientific.Name,fixed=T)] <- me.species$in.GH[me.species$species==me.species$species[i]]
-#   protected.species$GH.sdm[grepl(me.species$species[i],protected.species$Scientific.Name)] <- "SDM"
-# }
 ```
 
 ```{r identify species with low AUC scores in LH and convert to SSI}
@@ -201,6 +191,7 @@ for(i in seq(species.list)){
 try({
             file.remove(paste0(GH.zonation.dir,"extant/",gsub(" ","_",species.list[i]),"_SDM.GH.tif"))
             cat("Removed",paste0(species.list[i],"_SDM.GH.tif","\n"))
+            protected.species$GH.sdm[protected.species$Scientific.Name==as.character(species.list[i])] <- "SDM removed"
             },silent=T)
 }
 
@@ -229,9 +220,9 @@ for(i in seq(ssi.species$species)){
     ssi.species$in.GH[i] <- nrow(species.data)
     in.HCCREMS <- length(which(!is.na(extract(GH.clipping.mask,species.data[,c("easting","northing")]))))
     
-#     species <- gsub("_"," ",species)
-#     protected.species$greater.hunter[protected.species$Scientific.Name==as.character(species)] <- nrow(species.data)
-#     protected.species$GH.sdm[protected.species$Scientific.Name==as.character(species)] <- "SSI"  
+    species <- gsub("_"," ",species)
+    protected.species$GH_PM[protected.species$Scientific.Name==as.character(species)] <- nrow(species.data)
+    protected.species$GH_PM.sdm[protected.species$Scientific.Name==as.character(species)] <- "SSI"  
   
     if(in.HCCREMS>0) {
       ssi.species$in.HCCREMS[i] <- "TRUE"
@@ -239,8 +230,8 @@ for(i in seq(ssi.species$species)){
           
       presence.absence.raster(GH.clipping.mask,species.data[,1:2], raster.label=species)
       
-#       protected.species$GH.sdm[protected.species$Scientific.Name==as.character(species)] <- "SSI"
-#       protected.species$greater.hunter[protected.species$Scientific.Name==as.character(species)] <- in.HCCREMS
+      protected.species$GH.sdm[protected.species$Scientific.Name==as.character(species)] <- "SSI"
+      protected.species$greater.hunter[protected.species$Scientific.Name==as.character(species)] <- in.HCCREMS
     
     } else ssi.species$in.HCCREMS[i] <- "FALSE"
   })
@@ -271,15 +262,18 @@ Clip TECS
 # loop through each tec, identify which has points in HCCREMS and return list
   for(i in seq(me.tec$tec)){
     s <- maxent.data[maxent.data$tec==me.tec$tec[i],]
+    tec <- gsub("_"," ",me.tec$tec[i])
     
     # identify points within region
     me.tec$in.GH[i] <- nrow(s)
+    protected.species$GH_PM[protected.species$Scientific.Name==as.character(tec)] <- me.tec$in.GH[i]
     in.HCCREMS <- length(which(!is.na(extract(GH.clipping.mask,s[,c("easting","northing")]))))
     
     if(in.HCCREMS>0) {
       me.tec$in.HCCREMS[i] <- "TRUE"
       cat(as.character(me.tec$tec[i]),"has", in.HCCREMS, "points in HCCREMS","\n")
       tec.data$GH.points[tec.data$TEC_Amy==as.character(me.tec$tec[i])] <- in.HCCREMS
+      protected.species$greater_hunter[protected.species$Scientific.Name==as.character(tec)] <- in.HCCREMS
         } else me.tec$in.HCCREMS[i] <- "FALSE"
     me.tec$AUC[i] <- maxentResults[grepl(me.tec$tec[i],maxentResults$tec),"cv.roc.mean" ]
   }
@@ -309,9 +303,11 @@ Clip TECS
       clip.to.GH(GH.tifs[j],GH.clipping.mask)
       me.tec[me.tec$tec==tec,"GH.max"] <- cellStats(raster(paste0(GH_PM.zonation.dir,"extant/",GH.tifs[j],"_SDM.GH_PM.tif")),max)/1000
       me.tec[me.tec$tec==tec,"HCCREMS.max"] <- cellStats(raster(paste0(GH.zonation.dir,"extant/",GH.tifs[j],"_SDM.GH.tif")),max)/1000
+      protected.species$GH_PM.sdm[protected.species$Scientific.Name==as.character(gsub("_"," ",tec))] <- "SDM"
       
       if(me.tec[me.tec$tec==tec,"GH.max"]*1000 > 1){
         tec.data$HCCREMS.sdm[tec.data$TEC_Amy==as.character(tec)] <- "SDM"
+        protected.species$GH.sdm[protected.species$Scientific.Name==as.character(gsub("_"," ",tec))] <- "SDM"
       }
     }, error=function(err) cat(""),warning=function(war) cat("Check",GH.tifs[j],"for missing tif","\n"))
   }
@@ -340,9 +336,12 @@ Clip TECS
     if(length(tec.list)>0){
      
       for(i in seq(tec.list)){
+        tec <- gsub("_"," ",tec.list[i])
         
         ssi.data <- maxent.data[maxent.data$tec == tec.list[i],]
         ssi.data <- ssi.data[,c("easting","northing")]
+        protected.species$GH_PM[protected.species$Scientific.Name==tec)] <- nrow(ssi.data)
+        protected.species$GH_PM.sdm[protected.species$Scientific.Name==tec)] <- "SSI"
   
         presence.absence.raster(GH.clipping.mask,ssi.data, raster.label=tec.list[i])
         try({
@@ -376,16 +375,21 @@ for(i in seq(ssi.tec$tec)){
   
   # identify points within region
     ssi.tec$in.GH[i] <- nrow(ssi.data)
+    protected.species$GH_PM[protected.species$Scientific.Name==gsub("_"," ",tec)] <- nrow(ssi.data)
+    protected.species$GH_PM.sdm[protected.species$Scientific.Name==gsub("_"," ",tec)] <- "SSI"
     in.HCCREMS <- length(which(!is.na(extract(GH.clipping.mask,ssi.data[,c("easting","northing")]))))
     
     if(in.HCCREMS>0) {
       ssi.tec$in.HCCREMS[i] <- "TRUE"
       cat(as.character(tec),"has",in.HCCREMS,"points in greater hunter","\n")
           
-      presence.absence.raster(GH.clipping.mask,ssi.data[,c("easting","northing")], raster.label=tec)
+#       presence.absence.raster(GH.clipping.mask,ssi.data[,c("easting","northing")], raster.label=tec)
       
       tec.data$HCCREMS.sdm[tec.data$TEC_Amy==tec] <- "SSI"
       tec.data$HCCREMS.points[tec.data$TEC_Amy==tec] <- in.HCCREMS
+      
+      protected.species$greater.hunter[protected.species$Scientific.Name==gsub("_"," ",tec)] <- in.HCCREMS
+      protected.species$GH.sdm[protected.species$Scientific.Name==gsub("_"," ",tec)] <- "SSI"
     
     } else ssi.tec$in.HCCREMS[i] <- "FALSE"
   
@@ -428,42 +432,6 @@ try({
 
 ```
 
-
-```{r check for rasters of the wrong dimensions}
-# cells <- length(LH.clipping.mask[!is.na(LH.clipping.mask)])
-# 
-# tifs <- dir(LH.zonation.dir, pattern="_LH.tif$",full.names=T,recursive=T)
-# 
-# errors <- NULL
-# 
-# steps <- length(tifs)
-# bar <- txtProgressBar(min=0,max=steps,style=3)
-# 
-# for(i in seq(tifs)){
-#   
-#   setTxtProgressBar(bar,i)
-#   
-#   r<- raster(tifs[i])
-#   # check if the same size
-#   if(length(r[!is.na(r)])!= cells) {
-#     r <- mask(crop(r,LH.clipping.mask),LH.clipping.mask)
-#     # if now the right size and still has data, save raster
-#     if(cellStats(r,max)>0 & length(r[!is.na(r)])== cells) {
-#       writeRaster(r,paste0(LH.zonation.dir,tifs[i]),overwrite=T)
-#     } else errors <- append(errors,tifs[i])
-#   }
-# }
-# 
-# close(bar)
-# 
-# # note that this is a hack as these files still aren't the same size - not sure why
-# #sewpac <- c("ghff_foraging_LH.tif","koala_rawhabval6_LH.tif","Regent_Honeyeater_LH.tif","Swift_Parrot_LH.tif")
-# #errors <- errors[!errors %in% sewpac]
-# 
-# ## only run this if you definitely want to delete these files!!
-# # file.remove(paste0(LH.zonation.dir,errors))
-
-```
 
 
 ```{r create zonation spp file}
